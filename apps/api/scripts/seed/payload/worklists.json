@@ -5,10 +5,10 @@
     { "key": "mt-safety-monthly", "name": "Monthly Safety Round", "category": "safety", "checklist": "1. Test fire detection\n2. Check liferaft hydrostatic release\n3. Inspect EPIRB battery\n4. Verify lifejacket count", "precautions": "Notify bridge before testing alarms." },
     { "key": "mt-nav-quarterly", "name": "Quarterly Navigation Check", "category": "navigation", "checklist": "1. Update ECDIS charts\n2. Calibrate gyro\n3. Test radar performance\n4. Verify AIS transmission", "precautions": "Do not disable AIS while underway." }
   ],
-  "ship": [
-    { "key": "mt-aurora-engine", "ship": "aurora", "fromGlobal": "mt-engine-500h" },
-    { "key": "mt-aurora-hull", "ship": "aurora", "name": "Aurora Hull Survey", "category": "deck", "checklist": "1. Bow thruster tunnel inspection\n2. Anode replacement\n3. Propeller polish", "precautions": "Coordinate with class surveyor." },
-    { "key": "mt-leviathan-safety", "ship": "leviathan", "fromGlobal": "mt-safety-monthly" },
-    { "key": "mt-calypso-nav", "ship": "calypso", "fromGlobal": "mt-nav-quarterly" }
+  "project": [
+    { "key": "mt-aurora-engine", "project": "aurora", "fromGlobal": "mt-engine-500h" },
+    { "key": "mt-aurora-hull", "project": "aurora", "name": "Aurora Hull Survey", "category": "deck", "checklist": "1. Bow thruster tunnel inspection\n2. Anode replacement\n3. Propeller polish", "precautions": "Coordinate with class surveyor." },
+    { "key": "mt-leviathan-safety", "project": "leviathan", "fromGlobal": "mt-safety-monthly" },
+    { "key": "mt-calypso-nav", "project": "calypso", "fromGlobal": "mt-nav-quarterly" }
   ]
 }

@@ -46,7 +46,7 @@ import { addReference } from "@/modules/issue/references.service";
 import { createComment } from "@/modules/item/comment.service";
 import { items } from "@/modules/item/schema";
 import { createTuple } from "@/modules/policy/policy.service";
-import { createCategory } from "@/modules/procurement/procurement.categories";
+import { listCategories } from "@/modules/procurement/procurement.categories";
 import { createGlobalCategory } from "@/modules/procurement/procurement.global-categories";
 import { createProcurement } from "@/modules/procurement/procurement.service";
 import { listRoles } from "@/modules/project/project.roles";
@@ -56,16 +56,21 @@ import { createShare } from "@/modules/share/share.service";
 import { createEquipment } from "@/modules/ship/ship.equipment.service";
 import { createGlobalEquipmentCategory } from "@/modules/ship/ship.global-equipment-category.service";
 import { createGlobalEquipmentManufacturer } from "@/modules/ship/ship.global-equipment-manufacturer.service";
-import { bindProject, createShip, setShipCover } from "@/modules/ship/ship.service";
-import { listShipEquipmentCategories } from "@/modules/ship/ship.ship-equipment-category.service";
-import { createGlobalWorklist, createShipWorklist } from "@/modules/ship/ship.worklist.service";
+import { listProjectEquipmentCategories } from "@/modules/ship/ship.ship-equipment-category.service";
+import { createGlobalWorklist, createProjectWorklist } from "@/modules/ship/ship.worklist.service";
 import { ROOT_DIR } from "@/root";
 import { nanoid, ulid } from "@/shared/lib/id";
-// Side-effect imports: register the share adapters so `createShare` resolves
-// document / drive_entry resource types (the app registers these at boot via
-// the module index barrels; the seed importer pulls them in directly).
+import { assertMountIntegrity } from "./seed.integrity";
+// Side-effect imports. The four module barrels register the project sections
+// (PLAN-108 §3) whose `provision` hooks run inside `createProject` — without
+// them a new project would get bare mount rows and no ship profile, no copied
+// categories. `document.share-adapter` registers the share resource type
+// `createShare` resolves; the drive one ships with the drive barrel.
+import "@/modules/drive";
+import "@/modules/issue";
+import "@/modules/procurement";
+import "@/modules/ship";
 import "@/modules/document/document.share-adapter";
-import "@/modules/drive/drive.share-adapter";
 
 const SEED_DIR = import.meta.dir;
 const DATA_DIR = resolve(SEED_DIR, "payload");
@@ -104,9 +109,16 @@ interface UserRec { key: string; username: string; name: string; email: string; 
 interface GroupRec { key: string; name: string; description?: string; modules?: string[]; members: string[] }
 interface ContactRec { key: string; kind: "individual" | "organization"; name: string; phone?: string; email?: string; website?: string; position?: string; org?: string; taxId?: string; address?: string; category?: string; status?: "active" | "inactive"; confidential?: boolean; visibility?: "private" | "public"; tags?: string[]; note?: string; attributes?: Record<string, string> }
 interface EquipmentRec { name: string; category?: string; manufacturer?: string; model?: string; serialNumber?: string; installedAt?: string; note?: string; location?: string; status?: "active" | "retired" }
-interface ShipRec { key: string; name: string; model?: string; builder?: string; buildYear?: number; loa?: number; beam?: number; draft?: number; airDraft?: number | null; gt?: number | null; flagState?: string; registryPort?: string; status?: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired"; tags?: string[]; cover?: string | null; imoNumber?: string; mmsi?: string; callSign?: string; ownerName?: string; equipment?: EquipmentRec[] }
-interface MaintRec { key: string; name?: string; category?: string; checklist?: string; precautions?: string; ship?: string; fromGlobal?: string }
-interface ProjectRec { key: string; name: string; description?: string; creator: string; tags?: string[]; cover?: string | null; bindShip?: string | null; members?: { user?: string; username?: string; name?: string; title?: string; role: string }[]; categories?: string[] }
+// A ship is a PROJECT created with the `ship` preset: the project-level
+// fields sit at the top of the record and the maritime particulars go through
+// verbatim as the `ship-profile` slice of `sectionData` (the field names match
+// `shipProfileSectionDataSchema`, so no mapping layer is needed).
+interface ShipProfileRec { hullNumber: string; shipStatus?: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired"; model?: string | null; builder?: string | null; buildYear?: number | null; lengthOverall?: number | null; beam?: number | null; draft?: number | null; airDraft?: number | null; grossTonnage?: number | null; imoNumber?: string | null; mmsi?: string | null; callSign?: string | null; flagState?: string | null; registryPort?: string | null; ownerName?: string | null }
+interface ShipRec { key: string; name: string; code?: string; description?: string | null; tags?: string[]; cover?: string | null; profile: ShipProfileRec; equipment?: EquipmentRec[] }
+interface MaintRec { key: string; name?: string; category?: string; checklist?: string; precautions?: string; project?: string; fromGlobal?: string }
+// `parent` is a ship key: the old "bound project" link is now a sub-project,
+// so the refit/survey project hangs under its vessel's project.
+interface ProjectRec { key: string; name: string; description?: string; creator: string; tags?: string[]; cover?: string | null; parent?: string | null; members?: { user?: string; username?: string; name?: string; title?: string; role: string }[] }
 interface IssueTemplate { key: string; title: string; status: string; priority: string; tags?: string[]; description?: string; assign?: boolean; dueOffsetDays?: number | null; attachment?: string | null; comments?: { text: string; internal?: boolean }[] }
 interface ProcTemplate { key: string; itemName: string; status: string; supplier?: string; category?: string; tags?: string[]; quantity?: number; amount?: number; currency?: string; priority?: string; description?: string; dueOffsetDays?: number | null; attachment?: string | null }
 interface ContactCategoryRec { key: string; name: string; code?: string; description?: string }
@@ -127,12 +139,15 @@ const userId = new Map<string, string>();
 const userName = new Map<string, string>();
 const contactCategoryId = new Map<string, string>();
 const contactId = new Map<string, string>();
-const shipInternalId = new Map<string, string>();
-const shipShortId = new Map<string, string>();
+// Ship-project ids, keyed by the ships.json `key`. Both are needed: the
+// internal ULID scopes equipment / worklists, the short id is what a
+// sub-project passes as its `parentId`.
+const shipProjectId = new Map<string, string>();
+const shipProjectShortId = new Map<string, string>();
 const globalWorklistId = new Map<string, string>();
-// Seeded worklist {id, name} pairs (global + ship) — valid `issue_references`
-// refIds for `refType:"worklist"`. Issue item ids collected during import so a
-// later pass can attach worklist references to them.
+// Seeded worklist {id, name} pairs (global + per-project) — valid
+// `issue_references` refIds for `refType:"worklist"`. Issue item ids collected
+// during import so a later pass can attach worklist references to them.
 const seededWorklistRefs: { id: string; name: string }[] = [];
 const seededIssueItemIds: string[] = [];
 interface ProjectInfo { id: string; shortId: string; creatorUserId: string; memberRoleId: string; members: { memberId: string; userId: string }[]; categoryIds: Map<string, string> }
@@ -252,13 +267,14 @@ async function importEquipmentCategories(db: AppDatabase): Promise<number> {
   return SHIP_EQUIPMENT_CATEGORIES.length;
 }
 
-async function importShips(db: AppDatabase, config: Config): Promise<{ equipment: number; manufacturers: number }> {
+/**
+ * Global equipment-manufacturer vocabulary, derived from the fixtures: one
+ * `equipment_manufacturers` row per DISTINCT manufacturer string across every
+ * ship's equipment. Shared globally (no per-project copy), and seeded before
+ * any project so the equipment importer can resolve free text to a row id.
+ */
+async function importEquipmentManufacturers(db: AppDatabase): Promise<Map<string, string>> {
   const recs = await readJson<ShipRec[]>("ships");
-
-  // Derive the manufacturer vocabulary from the fixtures: one
-  // `equipment_manufacturers` row per DISTINCT manufacturer string across all
-  // ships' equipment, then resolve each equipment's free-text manufacturer to
-  // its row id. The global vocabulary is shared (no per-ship copy).
   const manufacturerIdByName = new Map<string, string>();
   for (const s of recs) {
     for (const e of s.equipment ?? []) {
@@ -268,46 +284,56 @@ async function importShips(db: AppDatabase, config: Config): Promise<{ equipment
       }
     }
   }
+  return manufacturerIdByName;
+}
+
+/**
+ * Ships, imported through the NORMAL project create path: a ship is a project
+ * on the `ship` preset, and the maritime particulars ride along as the
+ * `ship-profile` slice of `sectionData`. Nothing here writes `project_sections`,
+ * `ship_profiles` or `ship_equipment_categories` — `createProject` mounts the
+ * six sections and runs their provision hooks in one transaction, so the seed
+ * doubles as a provisioning test.
+ */
+async function importShipProjects(
+  db: AppDatabase,
+  config: Config,
+  manufacturerIdByName: ReadonlyMap<string, string>,
+): Promise<{ ships: number; equipment: number }> {
+  const recs = await readJson<ShipRec[]>("ships");
 
   let equipment = 0;
   for (const s of recs) {
-    const ship = await createShip(db, {
+    const project = await createProject(db, {
       name: s.name,
+      code: s.code,
       creatorId: uId(ADMIN_KEY),
-      status: s.status ?? "laid_up",
+      description: s.description ?? null,
       tags: s.tags ?? [],
-      model: s.model ?? null,
-      builder: s.builder ?? null,
-      buildYear: s.buildYear ?? null,
-      lengthOverall: s.loa ?? null,
-      beam: s.beam ?? null,
-      draft: s.draft ?? null,
-      airDraft: s.airDraft ?? null,
-      grossTonnage: s.gt ?? null,
-      imoNumber: s.imoNumber ?? null,
-      mmsi: s.mmsi ?? null,
-      callSign: s.callSign ?? null,
-      flagState: s.flagState ?? null,
-      registryPort: s.registryPort ?? null,
-      ownerName: s.ownerName ?? null,
-      description: s.model ? `${s.builder ?? ""} ${s.model} — ${s.loa ?? "?"} m.`.trim() : null,
+      preset: "ship",
+      // Handed through untyped; the ship module validates the slice.
+      sectionData: { "ship-profile": s.profile },
     });
-    shipInternalId.set(s.key, ship.id);
-    shipShortId.set(s.key, ship.shortId);
+    shipProjectId.set(s.key, project.id);
+    shipProjectShortId.set(s.key, project.shortId);
 
-    // createShip copied the global template into this ship's own categories;
-    // resolve each equipment's category against that per-ship set (keyed by the
-    // `code` slug carried over from the template).
-    const perShipCategoryIdByCode = new Map<string, string>();
-    for (const cat of await listShipEquipmentCategories(db, ship.id)) {
+    // The `equipment` section's provision hook copied the global template into
+    // this project's own categories; resolve each equipment record's category
+    // against that copy (keyed by the `code` slug carried over from the
+    // template). An empty copy means the global template was seeded after the
+    // project — the ordering bug this check exists to catch.
+    const categoryIdByCode = new Map<string, string>();
+    for (const cat of await listProjectEquipmentCategories(db, project.id)) {
       if (cat.code)
-        perShipCategoryIdByCode.set(cat.code, cat.id);
+        categoryIdByCode.set(cat.code, cat.id);
     }
+    if (categoryIdByCode.size === 0)
+      throw new Error(`Ship project ${s.key} copied no equipment categories; seed the global template before creating projects`);
 
     for (const e of s.equipment ?? []) {
-      await createEquipment(db, ship.id, {
+      await createEquipment(db, project.id, {
         name: e.name,
-        categoryId: (e.category ? perShipCategoryIdByCode.get(e.category) : undefined) ?? null,
+        categoryId: (e.category ? categoryIdByCode.get(e.category) : undefined) ?? null,
         manufacturerId: (e.manufacturer ? manufacturerIdByName.get(e.manufacturer) : undefined) ?? null,
         model: e.model ?? null,
         serialNumber: e.serialNumber ?? null,
@@ -319,16 +345,17 @@ async function importShips(db: AppDatabase, config: Config): Promise<{ equipment
       equipment++;
     }
 
+    // A ship cover is a plain project cover.
     if (s.cover) {
       const file = await assetFile(COVERS_DIR, s.cover);
-      await setShipCover(db, config, ship.id, file, uId(ADMIN_KEY));
+      await setProjectCover(db, config, project.id, file, uId(ADMIN_KEY));
     }
   }
-  return { equipment, manufacturers: manufacturerIdByName.size };
+  return { ships: recs.length, equipment };
 }
 
 async function importWorklists(db: AppDatabase): Promise<number> {
-  const recs = await readJson<{ global: MaintRec[]; ship: MaintRec[] }>("worklists");
+  const recs = await readJson<{ global: MaintRec[]; project: MaintRec[] }>("worklists");
   let count = 0;
   for (const t of recs.global) {
     const wl = await createGlobalWorklist(db, {
@@ -342,11 +369,13 @@ async function importWorklists(db: AppDatabase): Promise<number> {
     seededWorklistRefs.push({ id: wl.id, name: wl.name });
     count++;
   }
-  for (const t of recs.ship) {
-    const internalId = shipInternalId.get(t.ship!);
-    if (!internalId)
-      throw new Error(`Worklist ${t.key} references unknown ship ${t.ship}`);
-    const result = await createShipWorklist(db, internalId, {
+  // Project-level worklists (`worklists.project_id`); the global entries above
+  // keep a NULL project_id and stay the shared knowledge base.
+  for (const t of recs.project) {
+    const projectId = shipProjectId.get(t.project!);
+    if (!projectId)
+      throw new Error(`Worklist ${t.key} references unknown ship project ${t.project}`);
+    const result = await createProjectWorklist(db, projectId, {
       name: t.name,
       // The old free-text `category` maps to a single worklist tag.
       tags: t.category ? [t.category] : [],
@@ -365,11 +394,18 @@ async function importProjects(db: AppDatabase, config: Config): Promise<void> {
   const recs = await readJson<ProjectRec[]>("projects");
   for (const p of recs) {
     const creatorUserId = uId(p.creator);
+    const parentShortId = p.parent ? shipProjectShortId.get(p.parent) : undefined;
+    if (p.parent && !parentShortId)
+      throw new Error(`Project ${p.key} references unknown ship project ${p.parent}`);
     const project = await createProject(db, {
       name: p.name,
       creatorId: creatorUserId,
       description: p.description ?? null,
       tags: p.tags ?? [],
+      // A project bound to a vessel is now a SUB-PROJECT of that vessel's own
+      // project (`parentId` takes the parent's short id). One level deep, so a
+      // ship project is never itself a child.
+      ...(parentShortId ? { parentId: parentShortId } : {}),
     });
 
     // The creator is auto-added with the Owner (system) role; the "Reader"
@@ -397,17 +433,15 @@ async function importProjects(db: AppDatabase, config: Config): Promise<void> {
       }
     }
 
+    // The `procurement` section's provision hook already copied the global
+    // category template into this project; index that copy by name so the
+    // procurement templates can resolve their category. Nothing is created
+    // here — a second `createCategory` would only duplicate the copy.
     const categoryIds = new Map<string, string>();
-    for (const catName of p.categories ?? []) {
-      const cat = await createCategory(db, project.id, { name: catName, code: catName.slice(0, 4).toUpperCase() });
-      categoryIds.set(catName, cat.id);
-    }
-
-    if (p.bindShip) {
-      const internalId = shipInternalId.get(p.bindShip);
-      if (internalId)
-        await bindProject(db, internalId, project.shortId);
-    }
+    for (const cat of await listCategories(db, project.id))
+      categoryIds.set(cat.name, cat.id);
+    if (categoryIds.size === 0)
+      throw new Error(`Project ${p.key} copied no procurement categories; seed the global template before creating projects`);
 
     if (p.cover) {
       const file = await assetFile(COVERS_DIR, p.cover);
@@ -736,7 +770,8 @@ async function importCron(db: AppDatabase): Promise<{ jobs: number; logs: number
 async function importAudit(db: AppDatabase): Promise<number> {
   // A small spread of audit events referencing seeded resources.
   const recs: AuditRec[] = [
-    { action: "ship.created", resourceType: "ship", resourceName: "Aurora", result: "success", actor: "admin" },
+    // A ship is created through the project path, so it audits as a project.
+    { action: "project.created", resourceType: "project", resourceName: "Aurora", result: "success", actor: "admin" },
     { action: "project.created", resourceType: "project", resourceName: "Aurora Dry-Dock Refit 2026", result: "success", actor: "pm-mercer" },
     { action: "issue.updated", resourceType: "issue", resourceName: "Replace bridge navigation radar", result: "success", actor: "eng-lin" },
     { action: "procurement.created", resourceType: "procurement", resourceName: "NR-900X navigation radar unit", result: "success", actor: "pm-mercer" },
@@ -862,13 +897,18 @@ async function main(): Promise<void> {
     await importGroups(db);
     const contactCategories = await importContactCategories(db);
     await importContacts(db);
+
+    // ORDER MATTERS: both global vocabularies are copied into a project by a
+    // section provision hook at CREATE time (procurement categories for every
+    // preset, equipment categories for the ship preset). Seed them before the
+    // first project or every project copies an empty template.
+    const globalProcCategories = await importGlobalProcurementCategories(db);
     const equipmentCategories = await importEquipmentCategories(db);
-    const { equipment, manufacturers } = await importShips(db, config);
+    const manufacturerIdByName = await importEquipmentManufacturers(db);
+
+    const ships = await importShipProjects(db, config, manufacturerIdByName);
     const worklistCount = await importWorklists(db);
     await importProjects(db, config);
-    // Admin vocab; seeded after projects so the copy-on-create in createProject
-    // does not duplicate the projects' own explicitly-seeded categories.
-    const globalProcCategories = await importGlobalProcurementCategories(db);
     const issues = await importIssues(db, config);
     const procurements = await importProcurements(db, config);
     const issueRefs = await importIssueReferences(db);
@@ -879,17 +919,22 @@ async function main(): Promise<void> {
     const settingsCount = await importSettings(db);
     const hr = await importHr(db);
 
+    // A missing mount row hides a core tab with no error anywhere, so the seed
+    // refuses to report success until every project carries its preset's
+    // sections. Mirrored by `seed.integrity.test.ts` so CI enforces it too.
+    const mounts = await assertMountIntegrity(db);
+
     console.log("Seed complete:");
     console.log(`  users:        ${userId.size}`);
     console.log(`  groups:       (with members)`);
     console.log(`  contact cats: ${contactCategories}`);
     console.log(`  contacts:     ${contactId.size}`);
     console.log(`  equip cats:   ${equipmentCategories} (bilingual)`);
-    console.log(`  equip mfrs:   ${manufacturers}`);
+    console.log(`  equip mfrs:   ${manufacturerIdByName.size}`);
     console.log(`  global proc cats: ${globalProcCategories}`);
-    console.log(`  ships:        ${shipInternalId.size} (+ base projects, ${equipment} equipment)`);
+    console.log(`  ships:        ${ships.ships} ship-preset projects (${ships.equipment} equipment)`);
     console.log(`  worklists:    ${worklistCount}`);
-    console.log(`  projects:     ${projectInfo.size} standalone (+ ship base projects)`);
+    console.log(`  projects:     ${projectInfo.size} general-preset (${mounts.projects} total incl. ships)`);
     console.log(`  issues:       ${issues.issues} (${issues.comments} comments, ${issues.attachments} attachments)`);
     console.log(`  issue refs:   ${issueRefs} (worklist references)`);
     console.log(`  procurements: ${procurements.procurements} (${procurements.attachments} attachments)`);
@@ -899,6 +944,7 @@ async function main(): Promise<void> {
     console.log(`  audit:        ${audits} events`);
     console.log(`  settings:     ${settingsCount}`);
     console.log(`  hr:           ${hr.colleagues} colleagues, ${hr.approvals} approvals, ${hr.payroll} payroll records`);
+    console.log(`  mounts:       ${mounts.projects} projects (${mounts.ships} ships) pass the section integrity check`);
     console.log(`\nAdmin account: admin@bit.hk (seeded with role=admin and the bundled dex oauth_sub, so logging in via dex keeps the admin role and owns the seeded drive/team data).`);
   }
   finally {
