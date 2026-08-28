@@ -1,6 +1,6 @@
 # CHORE-007 - Bring apps/api/scripts under typecheck
 
-- Status: Proposed
+- Status: In Progress
 - Plan: -
 - Depends on: [REFACTOR-039](REFACTOR-039.md) (merge first — the seed script is rewritten by it)
 - Created: 2026-08-28

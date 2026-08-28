@@ -1,6 +1,6 @@
 # CHORE-006 - Sweep the remaining non-English comments
 
-- Status: Proposed
+- Status: In Progress
 - Plan: -
 - Depends on: [REFACTOR-039](REFACTOR-039.md) (merge first — two of the files are rewritten by it)
 - Created: 2026-08-28
