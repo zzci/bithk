@@ -213,4 +213,5 @@
 | [FIX-071](FIX-071.md) | Project list issues one profile request per ship card | - | Completed | 2026-08-28 |
 | [CHORE-006](CHORE-006.md) | Sweep the remaining non-English comments | - | Completed | 2026-08-28 |
 | [CHORE-007](CHORE-007.md) | Bring apps/api/scripts under typecheck | - | Completed | 2026-08-28 |
+| [UI-032](UI-032.md) | Project Files tab sizes itself with a magic number instead of filling the tab area | - | Proposed | 2026-08-28 |
 | [CHORE-008](CHORE-008.md) | Bring the repository root under typecheck | - | Proposed | 2026-08-28 |
