@@ -3,25 +3,23 @@
 // The card is SECTION-AWARE, not type-aware: there is no `type` column on a
 // project, so the list branches on the mounted section set. A project that
 // mounts `ship-profile` gets this block; every other project keeps the plain
-// description + tags body. The particulars are not on the list row, so they
-// come from the section's own client, one query per ship card (TanStack Query
-// dedupes it with the detail page's copy).
+// description + tags body. The particulars RIDE ON THE LIST ROW itself
+// (`sectionSummary["ship-profile"]`, FIX-071), so a page of ship cards costs
+// one request — this component issues none of its own.
 
+import type { ShipProfileSummary } from "@/shared/lib/api/projects";
 import { useTranslation } from "react-i18next";
-import { useShipProfile } from "@/shared/lib/api/project-sections";
 import { ShipStatusBadge } from "./-ship-status-badge";
 
 interface ProjectShipIdentityProps {
-  readonly projectId: string;
+  readonly profile: ShipProfileSummary | undefined;
 }
 
-export function ProjectShipIdentity({ projectId }: ProjectShipIdentityProps) {
+export function ProjectShipIdentity({ profile }: ProjectShipIdentityProps) {
   const { t } = useTranslation("ships");
-  const profileQuery = useShipProfile(projectId);
-  const profile = profileQuery.data;
 
-  // Render nothing at all until the profile resolves: a half-filled identity
-  // block reads as "this ship has no IMO" rather than "still loading".
+  // Render nothing at all when the row carries no summary: a half-filled
+  // identity block reads as "this ship has no IMO" rather than "not loaded".
   if (!profile)
     return null;
 

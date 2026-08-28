@@ -1,6 +1,6 @@
 import type { ShipStatus } from "./schema";
 import type { AppDatabase, AppTransaction } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { ValidationError } from "@/shared/lib/errors";
 import { shipProfiles } from "./schema";
@@ -180,6 +180,57 @@ export async function hasShipProfile(db: AppDatabase, projectId: string): Promis
     .where(eq(shipProfiles.projectId, projectId))
     .get();
   return row !== undefined;
+}
+
+// ─── List-row summary (the `ship-profile` section's `listSummary` hook) ─────
+
+/**
+ * The slice of a profile a project LIST card renders. Deliberately narrower
+ * than `ShipProfileView`: the card shows the vessel's identity, not its
+ * particulars, so the list payload stays small.
+ */
+export interface ShipProfileSummary {
+  readonly hullNumber: string;
+  readonly shipStatus: ShipStatus;
+  readonly imoNumber: string | null;
+  readonly mmsi: string | null;
+}
+
+/**
+ * Summaries for a whole page of projects in ONE query, keyed by internal
+ * project id. Never call it per row — the list card used to fetch
+ * `/projects/{id}/ship-profile` itself, which is the N+1 this replaces
+ * (FIX-071). Mirrors `loadSectionsForProjects`, including its empty-input
+ * early return.
+ */
+export async function loadShipProfileSummaries(
+  db: AppDatabase,
+  projectIds: readonly string[],
+): Promise<Map<string, ShipProfileSummary>> {
+  const result = new Map<string, ShipProfileSummary>();
+  if (projectIds.length === 0)
+    return result;
+
+  const rows = await db.select({
+    projectId: shipProfiles.projectId,
+    hullNumber: shipProfiles.hullNumber,
+    shipStatus: shipProfiles.shipStatus,
+    imoNumber: shipProfiles.imoNumber,
+    mmsi: shipProfiles.mmsi,
+  })
+    .from(shipProfiles)
+    .where(inArray(shipProfiles.projectId, [...projectIds]))
+    .all();
+
+  for (const row of rows) {
+    result.set(row.projectId, {
+      hullNumber: row.hullNumber,
+      shipStatus: row.shipStatus,
+      imoNumber: row.imoNumber,
+      mmsi: row.mmsi,
+    });
+  }
+  return result;
 }
 
 const UPDATABLE_PROFILE_KEYS = [

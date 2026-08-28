@@ -24,7 +24,7 @@ import { AppError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { parseCapabilities, resolveRole, seedDefaultRoles } from "./project.roles";
 import { projectMembers, projectRoles, projects } from "./schema";
-import { DEFAULT_PROJECT_PRESET } from "./section.registry";
+import { DEFAULT_PROJECT_PRESET, listRegisteredSections } from "./section.registry";
 import { listSections, loadSectionsForProjects, provisionSections, sectionMountedFilter } from "./section.service";
 
 /** Settings key backing the admin "Project Defaults" cover picker. */
@@ -109,6 +109,12 @@ export interface ProjectView {
   // Mounted section keys in tab order (PLAN-108 §2). The single source of truth
   // for what this project is — the web assembles its tabs from this list.
   readonly sections: readonly string[];
+  // Opaque per-section contribution to this LIST row, keyed by section key
+  // (FIX-071) — e.g. the vessel identity a ship card renders. The project
+  // module never interprets it: each section's `listSummary` hook owns its own
+  // shape, the same way `sectionData` is opaque on the way in. Absent on the
+  // detail path, and absent entirely when no mounted section contributes.
+  readonly sectionSummary?: Readonly<Record<string, unknown>>;
   readonly coverImageUrl: string | null;
   readonly creatorId: string;
   readonly version: number;
@@ -131,6 +137,7 @@ export function composeProject(
   projectTagList: readonly ProjectTagView[] = [],
   coverImageUrl: string | null = null,
   sections: readonly string[] = [],
+  sectionSummary?: Readonly<Record<string, unknown>>,
 ): ProjectView {
   return {
     id: row.shortId,
@@ -140,6 +147,9 @@ export function composeProject(
     description: row.description,
     tags: projectTagList,
     sections,
+    // Omitted rather than set to undefined, so a row with no contributing
+    // section carries no key at all.
+    ...(sectionSummary ? { sectionSummary } : {}),
     coverImageUrl,
     creatorId: row.creatorId,
     version: row.version,
@@ -346,7 +356,11 @@ export async function getProjectByShortId(db: AppDatabase, shortId: string): Pro
   ).get();
 }
 
-/** Compose a single project view with its tags, cover image and sections loaded. */
+/**
+ * Compose a single project view with its tags, cover image and sections loaded.
+ * No `sectionSummary`: it is a LIST-ROW concern only (FIX-071) — the detail
+ * page reads each section's own endpoint, which carries the full payload.
+ */
 export async function composeProjectWithTags(db: AppDatabase, row: ProjectRow): Promise<ProjectView> {
   return composeProject(
     row,
@@ -387,6 +401,46 @@ export interface ListProjectParams {
 export interface ListProjectResult {
   readonly data: readonly ProjectView[];
   readonly total: number;
+}
+
+/**
+ * Per-section list-row summaries for a whole page (FIX-071). Every registered
+ * section that exposes a `listSummary` hook AND is mounted somewhere on this
+ * page is asked ONCE for the page's internal ids; the results are folded into
+ * one opaque record per project, keyed by section key.
+ *
+ * So the queries this adds are bounded by the number of summary-providing
+ * sections (one today), never by the number of rows — that bound is the whole
+ * point, and the reason the hook takes an id array rather than an id.
+ */
+async function loadSectionSummaries(
+  db: AppDatabase,
+  projectIds: readonly string[],
+  sectionMap: ReadonlyMap<string, readonly string[]>,
+): Promise<Map<string, Record<string, unknown>>> {
+  const result = new Map<string, Record<string, unknown>>();
+  if (projectIds.length === 0)
+    return result;
+
+  const mounted = new Set<string>();
+  for (const keys of sectionMap.values()) {
+    for (const key of keys)
+      mounted.add(key);
+  }
+
+  for (const section of listRegisteredSections()) {
+    if (!section.listSummary || !mounted.has(section.key))
+      continue;
+    const summaries = await section.listSummary(db, projectIds);
+    for (const [projectId, summary] of summaries) {
+      const row = result.get(projectId);
+      if (row)
+        row[section.key] = summary;
+      else
+        result.set(projectId, { [section.key]: summary });
+    }
+  }
+  return result;
 }
 
 export async function listProjects(db: AppDatabase, params: ListProjectParams = {}): Promise<ListProjectResult> {
@@ -433,11 +487,13 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
   const coverMap = await loadCoverUrlsByProject(db, rows);
   // One batched query for the whole page — never one per row.
   const sectionMap = await loadSectionsForProjects(db, rows.map(r => r.id));
+  const summaryMap = await loadSectionSummaries(db, rows.map(r => r.id), sectionMap);
   const data = rows.map(r => composeProject(
     r,
     tagMap.get(r.id) ?? [],
     coverMap.get(r.id) ?? null,
     sectionMap.get(r.id) ?? [],
+    summaryMap.get(r.id),
   ));
 
   return { data, total };

@@ -12965,6 +12965,11 @@ export interface operations {
                                 readonly usageCount: number;
                             }[];
                             readonly sections: readonly string[];
+                            readonly sectionSummary?: {
+                                readonly [key: string]: {
+                                    readonly [key: string]: unknown;
+                                };
+                            };
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13063,6 +13068,11 @@ export interface operations {
                                 readonly usageCount: number;
                             }[];
                             readonly sections: readonly string[];
+                            readonly sectionSummary?: {
+                                readonly [key: string]: {
+                                    readonly [key: string]: unknown;
+                                };
+                            };
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13157,6 +13167,11 @@ export interface operations {
                                 readonly usageCount: number;
                             }[];
                             readonly sections: readonly string[];
+                            readonly sectionSummary?: {
+                                readonly [key: string]: {
+                                    readonly [key: string]: unknown;
+                                };
+                            };
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13306,6 +13321,11 @@ export interface operations {
                                 readonly usageCount: number;
                             }[];
                             readonly sections: readonly string[];
+                            readonly sectionSummary?: {
+                                readonly [key: string]: {
+                                    readonly [key: string]: unknown;
+                                };
+                            };
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13424,6 +13444,11 @@ export interface operations {
                                 readonly usageCount: number;
                             }[];
                             readonly sections: readonly string[];
+                            readonly sectionSummary?: {
+                                readonly [key: string]: {
+                                    readonly [key: string]: unknown;
+                                };
+                            };
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13518,6 +13543,11 @@ export interface operations {
                                 readonly usageCount: number;
                             }[];
                             readonly sections: readonly string[];
+                            readonly sectionSummary?: {
+                                readonly [key: string]: {
+                                    readonly [key: string]: unknown;
+                                };
+                            };
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13793,6 +13823,11 @@ export interface operations {
                                 readonly usageCount: number;
                             }[];
                             readonly sections: readonly string[];
+                            readonly sectionSummary?: {
+                                readonly [key: string]: {
+                                    readonly [key: string]: unknown;
+                                };
+                            };
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13887,6 +13922,11 @@ export interface operations {
                                 readonly usageCount: number;
                             }[];
                             readonly sections: readonly string[];
+                            readonly sectionSummary?: {
+                                readonly [key: string]: {
+                                    readonly [key: string]: unknown;
+                                };
+                            };
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13999,6 +14039,11 @@ export interface operations {
                                 readonly usageCount: number;
                             }[];
                             readonly sections: readonly string[];
+                            readonly sectionSummary?: {
+                                readonly [key: string]: {
+                                    readonly [key: string]: unknown;
+                                };
+                            };
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;

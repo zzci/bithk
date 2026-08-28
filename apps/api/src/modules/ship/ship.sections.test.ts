@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { projectRoutes } from "@/modules/project/project.routes";
-import { createProject } from "@/modules/project/project.service";
+import { createProject, listProjects } from "@/modules/project/project.service";
 import { listSections } from "@/modules/project/section.service";
 import { mountRoutes, seedUser, testNanoid } from "@/shared/test/route-harness";
 import { globalEquipmentCategories, shipEquipmentCategories, shipProfiles } from "./schema";
@@ -381,5 +381,69 @@ describe("late mount onto an existing general project", () => {
     const again = await mount(app, ship, "worklist");
     expect(again.status).toBe(200);
     expect((await again.json() as { data: string[] }).data.filter(k => k === "worklist")).toHaveLength(1);
+  });
+});
+
+// FIX-071: the list card renders the vessel's identity, so a ship project's
+// LIST ROW carries a small profile summary instead of the card fetching
+// `/projects/{id}/ship-profile` itself. The contribution comes from the
+// `ship-profile` section's `listSummary` hook, so the project module still
+// never imports the ship module.
+describe("ship-profile list summary", () => {
+  /**
+   * Run `body` against a probe database that counts every `select` it issues.
+   * An N+1 shows up as a count that grows with the number of rows returned.
+   */
+  async function countSelects(body: (probe: AppDatabase) => Promise<unknown>): Promise<number> {
+    let selects = 0;
+    const probe: AppDatabase = Object.create(db);
+    (probe as { select: unknown }).select = (...args: unknown[]) => {
+      selects += 1;
+      return (db.select as (...a: unknown[]) => unknown)(...args);
+    };
+    await body(probe);
+    return selects;
+  }
+
+  test("a ship row carries its particulars while a general row carries no summary", async () => {
+    const app = buildApp();
+    const ship = await ownedProject("ship", "Aurora");
+    await ownedProject("general", "Plain");
+    const update = await app.request(`/projects/${ship.shortId}/ship-profile`, jsonReq("PUT", ship.cookie, {
+      hullNumber: "HULL-9",
+      shipStatus: "underway",
+      imoNumber: "IMO-1234567",
+      mmsi: "412345678",
+    }));
+    expect(update.status).toBe(200);
+
+    const listed = await listProjects(db, {});
+    const aurora = listed.data.find(p => p.name === "Aurora")!;
+    const plain = listed.data.find(p => p.name === "Plain")!;
+
+    expect(aurora.sectionSummary?.["ship-profile"]).toEqual({
+      hullNumber: "HULL-9",
+      shipStatus: "underway",
+      imoNumber: "IMO-1234567",
+      mmsi: "412345678",
+    });
+    // A project without the section mounted contributes nothing.
+    expect(plain.sectionSummary?.["ship-profile"]).toBeUndefined();
+  });
+
+  test("the summary loads in one batch, so the query count does not scale with rows", async () => {
+    const ownerId = await seedUser(db, "user");
+    for (let i = 1; i <= 6; i++)
+      await createProject(db, { name: `Ship ${i}`, creatorId: ownerId, preset: "ship" });
+
+    const forOneRow = await countSelects(probe => listProjects(probe, { section: "ship-profile", limit: 1 }));
+    const forSixRows = await countSelects(probe => listProjects(probe, { section: "ship-profile", limit: 6 }));
+
+    // Six ship cards cost exactly what one costs: the hook runs once per page,
+    // never once per row.
+    expect(forSixRows).toBe(forOneRow);
+    const sixRows = await listProjects(db, { section: "ship-profile", limit: 6 });
+    expect(sixRows.data).toHaveLength(6);
+    expect(sixRows.data.every(p => p.sectionSummary?.["ship-profile"] !== undefined)).toBe(true);
   });
 });
