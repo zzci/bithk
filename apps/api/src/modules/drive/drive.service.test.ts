@@ -177,6 +177,14 @@ describe("listRecentDriveEntries", () => {
     const f2 = await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("second.txt") });
     // Bump f1 so it sorts ahead of f2.
     await updateDriveEntry(db, { ...personal(owner), id: f1.id, favorite: true });
+    // The bump alone is not enough: both uploads and the update can land in the same
+    // millisecond, which makes updated_at a tie and leaves the DESC sort free to return
+    // either order. Pin f1 strictly ahead of f2 so the ordering assertion below has a
+    // real ordering to find. Do not "simplify" this away.
+    await db.update(driveEntries)
+      .set({ updatedAt: new Date(Date.parse(f2.updatedAt) + 1000).toISOString() })
+      .where(eq(driveEntries.id, f1.id))
+      .run();
 
     const recent = await listRecentDriveEntries(db, owner);
     expect(recent.every(e => e.type === "file")).toBe(true);
