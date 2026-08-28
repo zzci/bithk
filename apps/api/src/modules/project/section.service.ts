@@ -4,12 +4,32 @@
 import type { ProjectPreset, SectionProvisionContext } from "./section.registry";
 import type { AppDatabase, AppTransaction } from "@/db";
 import { and, asc, eq, inArray, max } from "drizzle-orm";
-import { AppError, ValidationError } from "@/shared/lib/errors";
-import { projectSections } from "./schema";
+import { AppError, NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { projects, projectSections } from "./schema";
 import { getProjectSection, PRESET_SECTION_KEYS, PROJECT_PRESETS } from "./section.registry";
 
 /** Gap between adjacent `sort_order` values, so a later mount can be slotted between two. */
 const SORT_STEP = 10;
+
+/**
+ * Run one section's `provision` hook, if it has one. Both mount paths go
+ * through here so a late mount seeds exactly what a preset create seeds.
+ *
+ * Synchronous by necessity — bun:sqlite transactions are, so a hook that
+ * deferred its writes past an await would land after COMMIT. A hook returning a
+ * promise is therefore rejected loudly rather than silently losing its writes.
+ */
+function runProvision(tx: AppTransaction, projectId: string, key: string, ctx: SectionProvisionContext): void {
+  const provision = getProjectSection(key)?.provision;
+  if (!provision)
+    return;
+  // Typed `unknown` so the runtime guard survives the declared `void`
+  // return: the compile-time rejection of an async hook lives in
+  // `ProjectSectionDefinition`, this stays as the defence in depth.
+  const pending: unknown = provision(tx, projectId, ctx);
+  if (pending instanceof Promise)
+    throw new Error(`Project section '${key}' provisioned asynchronously; provision hooks must write synchronously inside the transaction`);
+}
 
 /**
  * Mount every section of `preset` on a freshly created project, then run each
@@ -19,10 +39,6 @@ const SORT_STEP = 10;
  * A preset key with no registered definition still gets its mount row: sections
  * register from their owning module's barrel, and provisioning must not depend
  * on which barrels an entrypoint happened to import.
- *
- * Synchronous by necessity — bun:sqlite transactions are, so a hook that
- * deferred its writes past an await would land after COMMIT. A hook returning a
- * promise is therefore rejected loudly rather than silently losing its writes.
  */
 export function provisionSections(
   tx: AppTransaction,
@@ -41,41 +57,66 @@ export function provisionSections(
     }).run();
   });
 
-  for (const key of keys) {
-    const provision = getProjectSection(key)?.provision;
-    if (!provision)
-      continue;
-    // Typed `unknown` so the runtime guard survives the declared `void`
-    // return: the compile-time rejection of an async hook lives in
-    // `ProjectSectionDefinition`, this stays as the defence in depth.
-    const pending: unknown = provision(tx, projectId, ctx);
-    if (pending instanceof Promise)
-      throw new Error(`Project section '${key}' provisioned asynchronously; provision hooks must write synchronously inside the transaction`);
-  }
+  for (const key of keys)
+    runProvision(tx, projectId, key, ctx);
 }
 
 /**
- * Mount a section on an existing project, appended after the current last one.
- * Idempotent: re-mounting an already-mounted section is a no-op, not an error.
- * Rejects a key that is neither in a preset nor registered.
+ * Mount a section on an existing project, appended after the current last one,
+ * and run its `provision` hook in the SAME transaction as the mount row
+ * (PLAN-108 §5): a late mount must leave the section as fully seeded as the
+ * preset would have, so "section mounted" and "profile row exists" stay
+ * equivalent. A hook that throws rolls the mount row back with it, leaving no
+ * half-mounted section.
+ *
+ * `sectionData` is this ONE section's raw create payload — the same slice
+ * `POST /projects` passes as `sectionData[key]`. It is handed to the hook
+ * untouched; the owning section validates its own shape.
+ *
+ * Idempotent: re-mounting an already-mounted section is a no-op (and provisions
+ * nothing a second time). Rejects a key that is neither in a preset nor
+ * registered.
  */
-export async function mountSection(db: AppDatabase, projectId: string, key: string): Promise<void> {
+export async function mountSection(
+  db: AppDatabase,
+  projectId: string,
+  key: string,
+  sectionData?: unknown,
+): Promise<void> {
   if (!PRESET_SECTION_KEYS.includes(key) && !getProjectSection(key))
     throw new ValidationError(`Unknown project section '${key}'`, { key });
 
   if (await hasSection(db, projectId, key))
     return;
 
+  // The hook's context wants the project's creator; a mount has no create input
+  // to read it from. Reading the row also fails fast on a project that is gone.
+  const project = await db.select({ creatorId: projects.creatorId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .get();
+  if (!project)
+    throw new NotFoundError("Project", projectId);
+
   const last = await db.select({ value: max(projectSections.sortOrder) })
     .from(projectSections)
     .where(eq(projectSections.projectId, projectId))
     .get();
   const sortOrder = last?.value === null || last?.value === undefined ? 0 : last.value + SORT_STEP;
+  const now = new Date().toISOString();
 
-  await db.insert(projectSections)
-    .values({ projectId, key, sortOrder, createdAt: new Date().toISOString() })
-    .onConflictDoNothing()
-    .run();
+  db.transaction((tx) => {
+    tx.insert(projectSections)
+      .values({ projectId, key, sortOrder, createdAt: now })
+      .onConflictDoNothing()
+      .run();
+    runProvision(tx, projectId, key, {
+      // No preset: a late mount answers to none.
+      now,
+      creatorId: project.creatorId,
+      sectionData: sectionData === undefined ? undefined : { [key]: sectionData },
+    });
+  });
 }
 
 /**

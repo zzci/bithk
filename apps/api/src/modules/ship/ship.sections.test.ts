@@ -66,8 +66,35 @@ async function unmount(app: Hono<AppEnv>, p: OwnedProject, key: string): Promise
   return app.request(`/projects/${p.shortId}/sections/${key}`, jsonReq("DELETE", p.cookie));
 }
 
-async function mount(app: Hono<AppEnv>, p: OwnedProject, key: string): Promise<Response> {
-  return app.request(`/projects/${p.shortId}/sections/${key}`, jsonReq("PUT", p.cookie));
+async function mount(app: Hono<AppEnv>, p: OwnedProject, key: string, body?: unknown): Promise<Response> {
+  return app.request(`/projects/${p.shortId}/sections/${key}`, jsonReq("PUT", p.cookie, body));
+}
+
+/** The project's ship profile, which every mounted `ship-profile` section has. */
+async function getProfile(app: Hono<AppEnv>, p: OwnedProject): Promise<{ hullNumber: string; shipStatus: string }> {
+  const res = await app.request(`/projects/${p.shortId}/ship-profile`, { headers: { Cookie: p.cookie } });
+  expect(res.status).toBe(200);
+  return (await res.json() as { data: { hullNumber: string; shipStatus: string } }).data;
+}
+
+/** The project's equipment-category names, in list order. */
+async function categoryNames(app: Hono<AppEnv>, p: OwnedProject): Promise<string[]> {
+  const res = await app.request(`/projects/${p.shortId}/equipment-categories`, { headers: { Cookie: p.cookie } });
+  expect(res.status).toBe(200);
+  return (await res.json() as { data: { nameEn: string }[] }).data.map(c => c.nameEn);
+}
+
+async function seedGlobalCategory(nameEn: string, code: string): Promise<void> {
+  const now = new Date().toISOString();
+  await db.insert(globalEquipmentCategories).values({
+    id: testNanoid(),
+    nameZh: `ZH ${nameEn}`,
+    nameEn,
+    code,
+    description: null,
+    createdAt: now,
+    updatedAt: now,
+  }).run();
 }
 
 async function statusOf(app: Hono<AppEnv>, p: OwnedProject, path: string): Promise<number> {
@@ -209,10 +236,12 @@ describe("unmounting a ship section while it still holds data", () => {
   });
 });
 
-// Mounting is not creating: `PUT /projects/:id/sections/:key` writes the mount
-// row and nothing else — `provision` hooks run only inside `createProject`. So
-// a project that "becomes a ship" later gets the routes but none of the seeded
-// data, and each section behaves differently in that state.
+// Mounting IS provisioning: `PUT /projects/:id/sections/:key` writes the mount
+// row and runs the section's `provision` hook in the same transaction, so a
+// project that "becomes a ship" later is seeded exactly as the `ship` preset
+// would have seeded it (PLAN-108 §5). These tests drive that through the real
+// route against the real ship hooks — a general project must be able to grow
+// each maritime section into a working, correctly seeded surface.
 describe("late mount onto an existing general project", () => {
   test("equipment goes from 404 to a working, empty surface", async () => {
     const app = buildApp();
@@ -233,28 +262,36 @@ describe("late mount onto an existing general project", () => {
     expect(created.status).toBe(201);
   });
 
-  test("a late-mounted equipment section starts with NO copied global categories", async () => {
-    const now = new Date().toISOString();
-    await db.insert(globalEquipmentCategories).values({
-      id: testNanoid(),
-      nameZh: "ZH Main Engine",
-      nameEn: "Main Engine",
-      code: "ME",
-      description: null,
-      createdAt: now,
-      updatedAt: now,
-    }).run();
+  test("a late-mounted equipment section copies the global category template, like a ship-preset create", async () => {
+    await seedGlobalCategory("Main Engine", "ME");
+
+    const app = buildApp();
+    const late = await ownedProject("general", "Plain");
+    expect((await mount(app, late, "equipment")).status).toBe(200);
+
+    // Same seeding as the preset path: the mount runs the section's `provision`
+    // hook, so a project that becomes a ship late still inherits the admin
+    // template rather than starting with an empty category set.
+    const ship = await ownedProject("ship");
+    expect(await categoryNames(app, late)).toEqual(["Main Engine"]);
+    expect(await categoryNames(app, late)).toEqual(await categoryNames(app, ship));
+  });
+
+  test("re-mounting equipment after an unmount copies the template once, not twice", async () => {
+    await seedGlobalCategory("Main Engine", "ME");
 
     const app = buildApp();
     const project = await ownedProject("general", "Plain");
     expect((await mount(app, project, "equipment")).status).toBe(200);
 
-    // Empty, not seeded — copy-on-create only runs at create time. The surface
-    // is usable (200 + an empty list, categories can be added by hand), it just
-    // does not inherit the admin template a ship-preset project would get.
-    const list = await app.request(`/projects/${project.shortId}/equipment-categories`, { headers: { Cookie: project.cookie } });
-    expect(list.status).toBe(200);
-    expect((await list.json() as { data: unknown[] }).data).toHaveLength(0);
+    // `unmountSection` refuses while the section holds data, so a re-mount can
+    // only ever start from an empty state — drop the copied category first.
+    await expectRefused(await unmount(app, project, "equipment"), project, "equipment");
+    await db.delete(shipEquipmentCategories).where(eq(shipEquipmentCategories.projectId, project.internalId)).run();
+    expect((await unmount(app, project, "equipment")).status).toBe(200);
+
+    expect((await mount(app, project, "equipment")).status).toBe(200);
+    expect(await categoryNames(app, project)).toEqual(["Main Engine"]);
   });
 
   test("worklist goes from 404 to a working, empty surface", async () => {
@@ -271,14 +308,13 @@ describe("late mount onto an existing general project", () => {
     expect((await app.request(`/projects/${project.shortId}/worklists`, jsonReq("POST", project.cookie, { name: "Hull check" }))).status).toBe(201);
   });
 
-  // FINDING (PLAN-108 §3, for L2): unlike the other two, `ship-profile` cannot
-  // recover from a late mount. Its provision hook is the ONLY writer of
-  // `ship_profiles`, and `PUT .../ship-profile` updates an existing row rather
-  // than upserting one — so the section mounts, the tab appears, and both verbs
-  // answer 404 "Ship profile ... not found" forever. That is a confusing dead
-  // end rather than an empty section, and it is a product decision (upsert on
-  // PUT, or a `mount` hook alongside `provision`), not a test fix.
-  test("ship-profile mounts but both verbs stay 404 — no provision hook runs on a late mount", async () => {
+  // The invariant PLAN-108 §5 states outright: "section mounted" and "profile
+  // row exists" are equivalent. `provision` is the ONLY writer of
+  // `ship_profiles` and `PUT .../ship-profile` updates rather than upserts, so
+  // a mount that skipped provisioning would leave both verbs answering 404
+  // forever with no API path to ever create the row. A general project must be
+  // able to become a ship after creation.
+  test("ship-profile mounts into a working surface — a profile row exists and both verbs answer", async () => {
     const app = buildApp();
     const project = await ownedProject("general", "Plain");
 
@@ -288,14 +324,55 @@ describe("late mount onto an existing general project", () => {
     expect(mounted.status).toBe(200);
     expect((await mounted.json() as { data: string[] }).data).toContain("ship-profile");
 
-    // The mount row exists, so `requireSection` now passes...
+    // The mount row exists, so `requireSection` passes...
     expect(await listSections(db, project.internalId)).toContain("ship-profile");
-    // ...but no profile row was created, so the surface is a dead end.
-    expect(await db.select().from(shipProfiles).where(eq(shipProfiles.projectId, project.internalId)).get()).toBeUndefined();
-    expect(await statusOf(app, project, "ship-profile")).toBe(404);
+    // ...and so does the profile row the section is defined by.
+    expect(await db.select().from(shipProfiles).where(eq(shipProfiles.projectId, project.internalId)).get()).toBeDefined();
+    expect(await statusOf(app, project, "ship-profile")).toBe(200);
 
     const put = await app.request(`/projects/${project.shortId}/ship-profile`, jsonReq("PUT", project.cookie, { hullNumber: "HULL-LATE" }));
-    expect(put.status).toBe(404);
+    expect(put.status).toBe(200);
+    expect((await put.json() as { data: { hullNumber: string } }).data.hullNumber).toBe("HULL-LATE");
+  });
+
+  test("a hull number supplied with the mount is used", async () => {
+    const app = buildApp();
+    const project = await ownedProject("general", "Plain");
+
+    const mounted = await mount(app, project, "ship-profile", { sectionData: { hullNumber: "HULL-MOUNT", shipStatus: "active" } });
+    expect(mounted.status).toBe(200);
+
+    const profile = await getProfile(app, project);
+    expect(profile.hullNumber).toBe("HULL-MOUNT");
+    expect(profile.shipStatus).toBe("active");
+  });
+
+  test("mounting with no payload falls back to the same generated hull number a bare ship create uses", async () => {
+    const app = buildApp();
+    const late = await ownedProject("general", "Plain");
+    const ship = await ownedProject("ship");
+
+    expect((await mount(app, late, "ship-profile")).status).toBe(200);
+
+    // One defaulting rule, reached from both paths.
+    const generated = (internalId: string): string => `S-${internalId.slice(-8).toUpperCase()}`;
+    expect((await getProfile(app, late)).hullNumber).toBe(generated(late.internalId));
+    expect((await getProfile(app, ship)).hullNumber).toBe(generated(ship.internalId));
+  });
+
+  test("a rejected ship-profile payload leaves the section unmounted, not half-mounted", async () => {
+    const app = buildApp();
+    const taken = await ownedProject("ship");
+    const project = await ownedProject("general", "Plain");
+    const existingHull = (await getProfile(app, taken)).hullNumber;
+
+    // Hull numbers are UNIQUE, so this provision fails inside the transaction.
+    const res = await mount(app, project, "ship-profile", { sectionData: { hullNumber: existingHull } });
+    expect(res.status).toBe(422);
+
+    expect(await listSections(db, project.internalId)).not.toContain("ship-profile");
+    expect(await db.select().from(shipProfiles).where(eq(shipProfiles.projectId, project.internalId)).get()).toBeUndefined();
+    expect(await statusOf(app, project, "ship-profile")).toBe(404);
   });
 
   test("re-mounting an already-mounted section is a no-op, not an error", async () => {
