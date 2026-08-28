@@ -4,6 +4,11 @@
 // SOLE external project identifier is the project shortId (`id` on the
 // views); the internal ULID is never exposed here.
 //
+// A project is a core record (metadata, members, roles, sub-projects) plus a
+// set of MOUNTED SECTIONS (PLAN-108). `ProjectView.sections` carries the keys
+// currently mounted; every section surface answers 404 while its key is
+// absent. Section payloads live in `project-sections.ts`.
+//
 // Project issues (work orders) live in this module too, scoped under a
 // project. Procurement lives in `procurement.ts`.
 //
@@ -45,6 +50,47 @@ export const PROJECT_CAPABILITIES = [
   "project.manage",
 ] as const satisfies readonly ProjectCapability[];
 
+// ── Sections ──
+//
+// Mirrors the backend section registry (apps/api `project/section.registry.ts`).
+// The API keeps `sections` a plain `string[]`, so these two literals are the
+// frontend's only source of truth for which keys exist and which preset mounts
+// which — keep them in lockstep with `PROJECT_PRESETS` on the backend.
+
+export const PROJECT_SECTION_KEYS = [
+  "issues",
+  "procurement",
+  "files",
+  "ship-profile",
+  "equipment",
+  "worklist",
+] as const;
+
+export type ProjectSectionKey = typeof PROJECT_SECTION_KEYS[number];
+
+/** Create-time presets: which sections a new project mounts, in tab order. */
+export const PROJECT_PRESETS = {
+  general: ["issues", "procurement", "files"],
+  ship: ["issues", "procurement", "files", "ship-profile", "equipment", "worklist"],
+} as const satisfies Record<string, readonly ProjectSectionKey[]>;
+
+export type ProjectPreset = keyof typeof PROJECT_PRESETS;
+
+export const DEFAULT_PROJECT_PRESET: ProjectPreset = "general";
+
+/**
+ * Raw per-section create payload, keyed by section key — the `sectionData` the
+ * backend hands to each section's provision hook (e.g.
+ * `{ "ship-profile": { hullNumber: "…" } }`). Each section validates its own
+ * slice server-side, so this stays deliberately untyped per key.
+ */
+export type ProjectSectionData = Readonly<Record<string, unknown>>;
+
+/** True when `key` is currently mounted on the project. */
+export function hasSection(project: Pick<ProjectView, "sections"> | undefined, key: ProjectSectionKey): boolean {
+  return project?.sections.includes(key) ?? false;
+}
+
 // Selectable tag vocabulary row from GET /tags (usage-count ordered; drives
 // the most-used-first ordering of the list filter).
 export type ProjectTag = ApiRow<"getTags">;
@@ -84,6 +130,7 @@ export const projectKeys = {
   issues: (id: string, query: string) => ["projects", id, "issues", query] as const,
   issue: (projectId: string, issueId: string) => ["projects", projectId, "issue", issueId] as const,
   referenceableWorklists: (id: string) => ["projects", id, "referenceable-worklists"] as const,
+  children: (id: string) => ["projects", id, "children"] as const,
 };
 
 export const issueKeys = {
@@ -182,6 +229,11 @@ export interface CreateProjectInput {
   readonly code?: string | null;
   readonly description?: string | null;
   readonly tags?: readonly string[];
+  /** Which sections the new project mounts; defaults to `general` server-side. */
+  readonly preset?: ProjectPreset;
+  /** Short id of the parent project — creates the project as a sub-project. */
+  readonly parentId?: string;
+  readonly sectionData?: ProjectSectionData;
 }
 
 export function useCreateProject(): UseMutationResult<ProjectView, Error, CreateProjectInput> {
@@ -256,6 +308,98 @@ export function useDeleteProject(): UseMutationResult<null, Error, string> {
     onSuccess: (_data, id) => {
       queryClient.removeQueries({ queryKey: projectKeys.detail(id) });
       void queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+    },
+  });
+}
+
+// ── Sections: mount / unmount ──
+//
+// Both routes answer with the project's whole section list in tab order.
+// Mounting also PROVISIONS the section (it may copy a global template), so
+// "mounted" and "its seeded rows exist" stay equivalent; unmounting is refused
+// with 409 `SECTION_NOT_EMPTY` while the section still holds data.
+
+export function useMountProjectSection(): UseMutationResult<readonly string[], Error, { projectId: string; key: ProjectSectionKey; sectionData?: Record<string, unknown> }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, key, sectionData }) => http<ApiEnvelope<readonly string[]>>(
+      `/projects/${encodeURIComponent(projectId)}/sections/${encodeURIComponent(key)}`,
+      { method: "PUT", body: JSON.stringify(sectionData ? { sectionData } : {}) },
+    ).then(r => r.data),
+    onSuccess: (_data, { projectId }) => {
+      // The detail payload carries `sections`, and the list rows do too.
+      void queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+      void queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+    },
+  });
+}
+
+export function useUnmountProjectSection(): UseMutationResult<readonly string[], Error, { projectId: string; key: ProjectSectionKey }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, key }) => http<ApiEnvelope<readonly string[]>>(
+      `/projects/${encodeURIComponent(projectId)}/sections/${encodeURIComponent(key)}`,
+      { method: "DELETE" },
+    ).then(r => r.data),
+    onSuccess: (_data, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+      void queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+    },
+  });
+}
+
+// ── Sub-projects (children) ──
+//
+// The hierarchy is exactly ONE level deep: a project that has a parent cannot
+// itself become a parent (the API answers 422). Unlinking never deletes the
+// child — it keeps its own members, roles and sections.
+
+export function useProjectChildren(projectId: string | undefined) {
+  return useQuery({
+    queryKey: projectKeys.children(projectId ?? ""),
+    queryFn: () => http<ApiEnvelope<readonly ProjectView[]>>(`/projects/${encodeURIComponent(projectId!)}/children`).then(r => r.data),
+    enabled: !!projectId,
+    staleTime: 5_000,
+  });
+}
+
+export function useCreateProjectChild(): UseMutationResult<ProjectView, Error, { parentId: string } & CreateProjectInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ parentId, ...body }) => http<ApiEnvelope<ProjectView>>(`/projects/${encodeURIComponent(parentId)}/children`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }).then(r => r.data),
+    onSuccess: (_data, { parentId }) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.children(parentId) });
+      void queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+    },
+  });
+}
+
+/** Link an existing project as a child of `parentId`. */
+export function useLinkProjectChild(): UseMutationResult<ProjectView, Error, { parentId: string; childId: string }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ parentId, childId }) => http<ApiEnvelope<ProjectView>>(
+      `/projects/${encodeURIComponent(parentId)}/children/${encodeURIComponent(childId)}`,
+      { method: "PUT" },
+    ).then(r => r.data),
+    onSuccess: (_data, { parentId }) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.children(parentId) });
+    },
+  });
+}
+
+export function useUnlinkProjectChild(): UseMutationResult<null, Error, { parentId: string; childId: string }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ parentId, childId }) => http<ApiEnvelope<null>>(
+      `/projects/${encodeURIComponent(parentId)}/children/${encodeURIComponent(childId)}`,
+      { method: "DELETE" },
+    ).then(r => r.data),
+    onSuccess: (_data, { parentId }) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.children(parentId) });
     },
   });
 }
@@ -519,9 +663,9 @@ interface IssueReferenceInput {
 
 // ── Referenceable worklists & issue references ──
 
-// A worklist (ship knowledge-base entry) that a work order can reference.
+// A worklist (knowledge-base entry) that a work order can reference.
 // `checklist` is free-form text that MAY hold a JSON array of strings; callers
-// render it defensively. Ship and global entries share one shape.
+// render it defensively. Project-owned and global entries share one shape.
 export type ReferenceableWorklist = ApiData<"getProjectsByProjectIdReferenceableWorklists">["ship"][number];
 
 // A generic reference attached to an issue. For `worklist` refs the `worklist`
@@ -532,8 +676,9 @@ export type IssueReferenceView = ApiRow<"getIssuesByIssueShortIdReferences">;
 // reference is dangling (target worklist deleted).
 export type ReferencedWorklist = NonNullable<IssueReferenceView["worklist"]>;
 
-// The worklists a project may reference: its ship's worklists (empty when the
-// project is not a ship base project) plus the global knowledge base.
+// The worklists a project may reference: its OWN worklists (the payload keeps
+// the historical `ship` group name) plus the global knowledge base. 404s while
+// the `worklist` section is not mounted, so only call it when it is.
 export function useReferenceableWorklists(projectId: string | undefined) {
   return useQuery<{ ship: readonly ReferenceableWorklist[]; global: readonly ReferenceableWorklist[] }>({
     queryKey: projectKeys.referenceableWorklists(projectId ?? ""),

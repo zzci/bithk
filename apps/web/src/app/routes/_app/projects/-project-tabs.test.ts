@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { activeProjectTab, PROJECT_TAB_TO } from "./-project-tabs";
+import { PROJECT_SECTIONS } from "./-project-sections";
+import { activeProjectTab, PROJECT_TAB_TO, PROJECT_TABS } from "./-project-tabs";
 
 const PID = "p1";
 
@@ -13,6 +14,10 @@ describe("activeProjectTab", () => {
     expect(activeProjectTab(`/projects/${PID}/issues`, PID)).toBe("issues");
     expect(activeProjectTab(`/projects/${PID}/procurements`, PID)).toBe("procurement");
     expect(activeProjectTab(`/projects/${PID}/files`, PID)).toBe("files");
+    expect(activeProjectTab(`/projects/${PID}/profile`, PID)).toBe("ship-profile");
+    expect(activeProjectTab(`/projects/${PID}/equipment`, PID)).toBe("equipment");
+    expect(activeProjectTab(`/projects/${PID}/worklist`, PID)).toBe("worklist");
+    expect(activeProjectTab(`/projects/${PID}/sub-projects`, PID)).toBe("sub-projects");
   });
 
   it("keeps the owning tab while a nested detail route overlays the list", () => {
@@ -22,7 +27,7 @@ describe("activeProjectTab", () => {
 
   it("falls back to overview for unknown segments or foreign paths", () => {
     expect(activeProjectTab(`/projects/${PID}/bogus`, PID)).toBe("overview");
-    expect(activeProjectTab(`/ships/${PID}/issues`, PID)).toBe("overview");
+    expect(activeProjectTab(`/documents/${PID}/issues`, PID)).toBe("overview");
   });
 });
 
@@ -32,5 +37,23 @@ describe("pROJECT_TAB_TO", () => {
     expect(PROJECT_TAB_TO.issues).toBe("/projects/$projectId/issues");
     expect(PROJECT_TAB_TO.procurement).toBe("/projects/$projectId/procurements");
     expect(PROJECT_TAB_TO.files).toBe("/projects/$projectId/files");
+    expect(PROJECT_TAB_TO["ship-profile"]).toBe("/projects/$projectId/profile");
+    expect(PROJECT_TAB_TO.equipment).toBe("/projects/$projectId/equipment");
+    expect(PROJECT_TAB_TO.worklist).toBe("/projects/$projectId/worklist");
+    expect(PROJECT_TAB_TO["sub-projects"]).toBe("/projects/$projectId/sub-projects");
+  });
+
+  it("covers every registry entry exactly once, in `order`", () => {
+    expect(PROJECT_TABS).toEqual([
+      "overview",
+      "issues",
+      "procurement",
+      "files",
+      "ship-profile",
+      "equipment",
+      "worklist",
+      "sub-projects",
+    ]);
+    expect(Object.keys(PROJECT_TAB_TO).toSorted()).toEqual([...PROJECT_SECTIONS.map(s => s.key)].toSorted());
   });
 });
