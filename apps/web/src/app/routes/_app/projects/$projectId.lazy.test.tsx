@@ -132,10 +132,10 @@ describe("projectDetailLayout tab gating", () => {
     expect(await screen.findByRole("tab", { name: "Details" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Equipment" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Checklists" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Projects" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Sub-projects" })).toBeInTheDocument();
   });
 
-  it("gives a general project exactly the four core tabs", async () => {
+  it("gives a general project its four section tabs plus sub-projects", async () => {
     mockRoutes({
       detail: () => jsonResponse({
         success: true,
@@ -148,10 +148,10 @@ describe("projectDetailLayout tab gating", () => {
     renderWithProviders(<ProjectDetailLayout />);
 
     await screen.findByRole("tab", { name: "Overview" });
-    expect(tabNames()).toEqual(["Overview", "Work Orders", "Procurement", "Files"]);
-    // No maritime section mounted, so none of the ship-preset tabs appear —
-    // including sub-projects, which follows the ship profile.
-    for (const absent of ["Details", "Equipment", "Checklists", "Projects"])
+    // Sub-projects is core, so it is here without a single ship section mounted.
+    expect(tabNames()).toEqual(["Overview", "Work Orders", "Procurement", "Files", "Sub-projects"]);
+    // No maritime section mounted, so none of the ship-preset tabs appear.
+    for (const absent of ["Details", "Equipment", "Checklists"])
       expect(screen.queryByRole("tab", { name: absent })).not.toBeInTheDocument();
   });
 
@@ -176,7 +176,7 @@ describe("projectDetailLayout tab gating", () => {
       "Details",
       "Equipment",
       "Checklists",
-      "Projects",
+      "Sub-projects",
     ]);
   });
 

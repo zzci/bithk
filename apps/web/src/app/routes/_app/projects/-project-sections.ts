@@ -8,12 +8,11 @@
 // `PROJECT_TAB_TO` and `activeProjectTab` from it, so adding a section means
 // adding an entry here plus a `$projectId.<segment>.{tsx,lazy.tsx}` pair.
 //
-// Two entries are NOT sections and are always visible or preset-gated instead:
+// Two entries are NOT sections; they are always-visible tabs instead:
 //   - `overview`      the project index route; every project has it.
-//   - `sub-projects`  the `/projects/:id/children` hierarchy. Children exist
-//                     for every project on the API, but the tab follows the
-//                     ship preset: it replaces the old ship↔project binding
-//                     surface, and a plain project has no use for it in v1.
+//   - `sub-projects`  the `/projects/:id/children` hierarchy. `parent_id` is a
+//                     core column and the API serves children for every
+//                     project, whatever it mounts, so the tab is core too.
 //
 // Reserved order slots (leave gaps so new sections slot in cleanly):
 //   10  Overview      — index route (`/projects/$projectId`)
@@ -120,7 +119,7 @@ export const PROJECT_SECTIONS = [
   { key: "ship-profile", labelKey: "tabs.profile", i18nNamespace: "ships", order: 50, routeSegment: "profile", isVisible: mounted("ship-profile"), filterLabelKey: "list.filterLabel", tile: { icon: Ship } },
   { key: "equipment", labelKey: "tabs.equipment", i18nNamespace: "ships", order: 60, routeSegment: "equipment", isVisible: mounted("equipment"), tile: { icon: Wrench }, settingsPanel: { labelKey: "equipmentCategories.title", capability: "project.manage" } },
   { key: "worklist", labelKey: "tabs.worklist", i18nNamespace: "ships", order: 70, routeSegment: "worklist", isVisible: mounted("worklist"), tile: { icon: ListChecks } },
-  { key: "sub-projects", labelKey: "tabs.projects", i18nNamespace: "ships", order: 80, routeSegment: "sub-projects", isVisible: mounted("ship-profile") },
+  { key: "sub-projects", labelKey: "tabs.subProjects", i18nNamespace: "projects", order: 80, routeSegment: "sub-projects", isVisible: () => true },
 ] as const satisfies readonly ProjectSectionDefinition[];
 
 /** Tab keys, as a literal union derived from the registry. */

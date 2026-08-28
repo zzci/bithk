@@ -1,7 +1,8 @@
-// Sub-projects tab: the project's children (`/projects/:id/children`), which
-// replace the old ship↔project binding. The hierarchy is exactly ONE level
-// deep — a child can never become a parent — and unlinking never deletes the
-// child, it only clears the link.
+// Sub-projects tab: the project's children (`/projects/:id/children`). Core for
+// every project, ship preset or not — `parent_id` is a core column and the API
+// serves children whatever the project mounts. The hierarchy is exactly ONE
+// level deep — a child can never become a parent — and unlinking never deletes
+// the child, it only clears the link.
 
 import type { ProjectView } from "@/shared/lib/api/projects";
 import { useNavigate } from "@tanstack/react-router";
@@ -22,7 +23,7 @@ interface ProjectChildrenTabProps {
 }
 
 export function ProjectChildrenTab({ project, canManage }: ProjectChildrenTabProps) {
-  const { t } = useTranslation(["ships", "projects", "common"]);
+  const { t } = useTranslation(["projects", "common"]);
   const navigate = useNavigate();
 
   const childrenQuery = useProjectChildren(project.id);
@@ -55,7 +56,7 @@ export function ProjectChildrenTab({ project, canManage }: ProjectChildrenTabPro
 
       <div className="flex items-start gap-2 rounded-lg bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" />
-        <p>{t("projects.callout")}</p>
+        <p>{t("subProjects.callout")}</p>
       </div>
 
       {unlink.error && <ErrorBanner message={errorMessage(unlink.error, t("common:common.error.operationFailed"))} />}
@@ -64,7 +65,7 @@ export function ProjectChildrenTab({ project, canManage }: ProjectChildrenTabPro
       {childrenQuery.isLoading
         ? <p className="text-sm text-muted-foreground">{t("common:common.loading")}</p>
         : children.length === 0
-          ? <p className="text-sm text-muted-foreground">{t("projects.empty")}</p>
+          ? <p className="text-sm text-muted-foreground">{t("subProjects.empty")}</p>
           : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {children.map(child => (
@@ -88,12 +89,12 @@ export function ProjectChildrenTab({ project, canManage }: ProjectChildrenTabPro
                         onClick={() => void navigate({ to: "/projects/$projectId", params: { projectId: child.id } })}
                       >
                         <ExternalLink className="mr-1 size-4" />
-                        {t("projects.open")}
+                        {t("subProjects.open")}
                       </Button>
                       {canManage && (
                         <Button variant="ghost" onClick={() => setUnlinkTarget(child)}>
                           <Link2Off className="mr-1 size-4 text-destructive" />
-                          {t("projects.unbind")}
+                          {t("subProjects.unbind")}
                         </Button>
                       )}
                     </div>
@@ -114,9 +115,9 @@ export function ProjectChildrenTab({ project, canManage }: ProjectChildrenTabPro
       <ConfirmDeleteDialog
         open={unlinkTarget !== null}
         onOpenChange={open => !open && setUnlinkTarget(null)}
-        title={t("projects.unbindTitle")}
-        description={t("projects.unbindConfirm", { name: unlinkTarget?.name ?? "" })}
-        confirmLabel={t("projects.unbind")}
+        title={t("subProjects.unbindTitle")}
+        description={t("subProjects.unbindConfirm", { name: unlinkTarget?.name ?? "" })}
+        confirmLabel={t("subProjects.unbind")}
         pending={unlink.isPending}
         onConfirm={handleUnlink}
       />

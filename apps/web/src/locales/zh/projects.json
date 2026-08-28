@@ -110,7 +110,25 @@
     "overview": "概览",
     "issues": "工单",
     "procurement": "采购",
-    "files": "文件"
+    "files": "文件",
+    "subProjects": "子项目"
+  },
+  "subProjects": {
+    "callout": "子项目本身也是独立项目：解除关联仅清除关联关系，不会删除该项目。层级仅支持一级。",
+    "pickerTitle": "关联子项目",
+    "searchPlaceholder": "按名称或编码搜索",
+    "bindFromExisting": "选择已有",
+    "bindCreateNew": "新建",
+    "noCandidates": "没有可关联的项目。",
+    "newName": "项目名称",
+    "newCode": "编码（可选）",
+    "bind": "关联",
+    "bound": "子项目已关联。",
+    "empty": "暂无子项目。",
+    "open": "打开",
+    "unbind": "解除关联",
+    "unbindTitle": "解除子项目关联",
+    "unbindConfirm": "确定将“{{name}}”从该项目解除关联？其文件与数据将保留。"
   },
   "overview": {
     "notSet": "未设置",

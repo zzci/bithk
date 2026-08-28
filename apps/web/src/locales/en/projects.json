@@ -110,7 +110,25 @@
     "overview": "Overview",
     "issues": "Work Orders",
     "procurement": "Procurement",
-    "files": "Files"
+    "files": "Files",
+    "subProjects": "Sub-projects"
+  },
+  "subProjects": {
+    "callout": "A sub-project is a project in its own right: unlinking one only clears the link, it never deletes the project. The hierarchy is one level deep.",
+    "pickerTitle": "Link a sub-project",
+    "searchPlaceholder": "Search by name or code",
+    "bindFromExisting": "Select existing",
+    "bindCreateNew": "Create new",
+    "noCandidates": "No projects available to link.",
+    "newName": "Project name",
+    "newCode": "Code (optional)",
+    "bind": "Link",
+    "bound": "Sub-project linked.",
+    "empty": "No sub-projects yet.",
+    "open": "Open",
+    "unbind": "Unlink",
+    "unbindTitle": "Unlink sub-project",
+    "unbindConfirm": "Unlink \"{{name}}\" from this project? Its files and data are preserved."
   },
   "overview": {
     "notSet": "Not set",

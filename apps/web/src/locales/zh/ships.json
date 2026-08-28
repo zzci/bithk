@@ -16,8 +16,7 @@
   "tabs": {
     "profile": "详情",
     "equipment": "设备",
-    "worklist": "清单",
-    "projects": "项目"
+    "worklist": "清单"
   },
   "field": {
     "name": "名称",
@@ -151,23 +150,6 @@
       "checklist": "检查清单",
       "precautions": "注意事项"
     }
-  },
-  "projects": {
-    "callout": "文件与权限都挂在该船舶的基础项目下。基础项目不可解绑。",
-    "pickerTitle": "绑定项目",
-    "searchPlaceholder": "按名称或编码搜索",
-    "bindFromExisting": "选择已有",
-    "bindCreateNew": "新建并绑定",
-    "noCandidates": "没有可绑定的项目。",
-    "newName": "项目名称",
-    "newCode": "编码（可选）",
-    "bind": "绑定",
-    "bound": "项目已绑定。",
-    "empty": "尚未绑定其它项目。",
-    "open": "打开",
-    "unbind": "解绑",
-    "unbindTitle": "解绑项目",
-    "unbindConfirm": "确定将“{{name}}”从该船舶解绑？其文件与数据将保留。"
   },
   "list": {
     "filterLabel": "船舶"

@@ -45,7 +45,7 @@ export const Route = createLazyFileRoute("/_app/projects/$projectId")({
 
 function ProjectDetailLayout() {
   // `ships` supplies the labels of the ship-preset tabs (profile / equipment /
-  // worklist / sub-projects); the registry names the namespace per entry.
+  // worklist); the registry names the namespace per entry.
   const { t } = useTranslation(["projects", "ships", "common"]);
   const { projectId } = useParams({ from: "/_app/projects/$projectId" });
   const { settings: settingsParam } = useSearch({ from: "/_app/projects/$projectId" });
@@ -117,8 +117,8 @@ function ProjectDetailLayout() {
   const tabCount = (n: number | undefined) => (n === undefined ? "" : ` ${n}`);
 
   // Which tabs this project offers: the registry filtered by its mounted
-  // sections and the caller's capabilities. A general project shows three
-  // section tabs, a ship project all six plus its sub-projects.
+  // sections and the caller's capabilities. Overview and sub-projects are core,
+  // so every project gets them on top of whatever sections it mounts.
   const tabs = visibleProjectSections({ project, has: caps.has });
   const tabCounts: Record<string, number | undefined> = {
     issues: issuesCount,

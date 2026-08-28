@@ -42,7 +42,7 @@ export function ProjectChildAddDialog({
   open,
   onOpenChange,
 }: ProjectChildAddDialogProps) {
-  const { t } = useTranslation(["ships", "projects", "common"]);
+  const { t } = useTranslation(["projects", "common"]);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [name, setName] = useState("");
@@ -69,7 +69,7 @@ export function ProjectChildAddDialog({
   );
 
   const onLinked = () => {
-    toast.success(t("projects.bound"));
+    toast.success(t("subProjects.bound"));
     onOpenChange(false);
   };
   const onLinkError = (e: unknown) =>
@@ -95,23 +95,23 @@ export function ProjectChildAddDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("projects.pickerTitle")}</DialogTitle>
+          <DialogTitle>{t("subProjects.pickerTitle")}</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="existing">
           <TabsList variant="line">
-            <TabsTrigger value="existing">{t("projects.bindFromExisting")}</TabsTrigger>
-            <TabsTrigger value="create">{t("projects.bindCreateNew")}</TabsTrigger>
+            <TabsTrigger value="existing">{t("subProjects.bindFromExisting")}</TabsTrigger>
+            <TabsTrigger value="create">{t("subProjects.bindCreateNew")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="existing" className="space-y-3">
             <Input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder={t("projects.searchPlaceholder")}
+              placeholder={t("subProjects.searchPlaceholder")}
             />
             {candidates.length === 0
-              ? <EmptyHint py="sm">{t("projects.noCandidates")}</EmptyHint>
+              ? <EmptyHint py="sm">{t("subProjects.noCandidates")}</EmptyHint>
               : (
                   <ul className="max-h-64 space-y-1 overflow-y-auto">
                     {candidates.map(project => (
@@ -124,7 +124,7 @@ export function ProjectChildAddDialog({
                           {project.code && <p className="truncate font-mono text-xs text-muted-foreground">{project.code}</p>}
                         </div>
                         <Button size="sm" onClick={() => linkExisting(project)} disabled={link.isPending}>
-                          {t("projects.bind")}
+                          {t("subProjects.bind")}
                         </Button>
                       </li>
                     ))}
@@ -135,7 +135,7 @@ export function ProjectChildAddDialog({
           <TabsContent value="create">
             <form onSubmit={createAndLink} className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="project-child-new-name">{t("projects.newName")}</Label>
+                <Label htmlFor="project-child-new-name">{t("subProjects.newName")}</Label>
                 <Input
                   id="project-child-new-name"
                   value={name}
@@ -145,7 +145,7 @@ export function ProjectChildAddDialog({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="project-child-new-code">{t("projects.newCode")}</Label>
+                <Label htmlFor="project-child-new-code">{t("subProjects.newCode")}</Label>
                 <Input
                   id="project-child-new-code"
                   value={code}
@@ -154,7 +154,7 @@ export function ProjectChildAddDialog({
               </div>
               <div className="flex justify-end">
                 <Button type="submit" disabled={!name.trim() || createChild.isPending || link.isPending}>
-                  {t("projects.bind")}
+                  {t("subProjects.bind")}
                 </Button>
               </div>
             </form>

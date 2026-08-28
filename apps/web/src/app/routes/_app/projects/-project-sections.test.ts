@@ -48,9 +48,10 @@ describe("pROJECT_SECTIONS", () => {
 });
 
 describe("visibleProjectSections", () => {
-  it("shows a general project only overview plus its three mounted sections", () => {
+  it("shows a general project overview, its three mounted sections and sub-projects", () => {
+    // Sub-projects is core: a general project reaches it exactly like a ship.
     const visible = visibleProjectSections(ctx(PROJECT_PRESETS.general)).map(s => s.key);
-    expect(visible).toEqual(["overview", "issues", "procurement", "files"]);
+    expect(visible).toEqual(["overview", "issues", "procurement", "files", "sub-projects"]);
   });
 
   it("shows a ship project every tab", () => {
@@ -69,11 +70,11 @@ describe("visibleProjectSections", () => {
 
   it("hides a mounted section whose view capability the caller lacks", () => {
     const visible = visibleProjectSections(ctx(PROJECT_PRESETS.general, ["issue.view"])).map(s => s.key);
-    expect(visible).toEqual(["overview", "issues"]);
+    expect(visible).toEqual(["overview", "issues", "sub-projects"]);
   });
 
-  it("keeps overview visible even with nothing mounted", () => {
-    expect(visibleProjectSections(ctx([])).map(s => s.key)).toEqual(["overview"]);
+  it("keeps the two core tabs visible even with nothing mounted", () => {
+    expect(visibleProjectSections(ctx([])).map(s => s.key)).toEqual(["overview", "sub-projects"]);
   });
 });
 
@@ -83,9 +84,13 @@ describe("isProjectSectionVisible", () => {
     expect(isProjectSectionVisible("equipment", ctx(["worklist"]))).toBe(false);
   });
 
-  it("gates the sub-projects tab on the ship preset", () => {
-    expect(isProjectSectionVisible("sub-projects", ctx(PROJECT_PRESETS.ship))).toBe(true);
-    expect(isProjectSectionVisible("sub-projects", ctx(PROJECT_PRESETS.general))).toBe(false);
+  it("gates neither core tab on a mount", () => {
+    // `parent_id` is core and the API serves `/children` for every project, so
+    // the sub-projects tab is reachable whatever the project mounts.
+    for (const sections of [PROJECT_PRESETS.ship, PROJECT_PRESETS.general, []]) {
+      expect(isProjectSectionVisible("sub-projects", ctx(sections))).toBe(true);
+      expect(isProjectSectionVisible("overview", ctx(sections))).toBe(true);
+    }
   });
 });
 
@@ -116,6 +121,12 @@ describe("mountableProjectSections", () => {
 describe("section label keys", () => {
   it("namespaces the tab label", () => {
     expect(projectSectionLabelKey(getProjectSection("equipment")!)).toBe("ships:tabs.equipment");
+  });
+
+  it("keeps the core tabs out of the ships namespace", () => {
+    // A tab every project shows must not depend on `ships.json` being loaded.
+    expect(projectSectionLabelKey(getProjectSection("overview")!)).toBe("projects:tabs.overview");
+    expect(projectSectionLabelKey(getProjectSection("sub-projects")!)).toBe("projects:tabs.subProjects");
   });
 
   it("prefers the filter override where the tab label would not read as a chip", () => {
