@@ -171,6 +171,8 @@ describe("provisionSections", () => {
   });
 
   test("rejects an async provision hook rather than losing its writes after COMMIT", async () => {
+    // @ts-expect-error an async provision hook is rejected at compile time; the
+    // runtime guard asserted below is the defence in depth behind it.
     registerProjectSection({ key: "files", provision: async () => {} });
 
     const creator = await seedUser();

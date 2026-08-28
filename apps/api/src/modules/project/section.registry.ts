@@ -36,8 +36,16 @@ export interface ProjectSectionDefinition {
    * Copy-on-create hook, run inside the project-creation transaction right
    * after the mount rows are written (e.g. procurement copies the global
    * category template). Omit for sections that need no seeded data.
+   *
+   * A provision hook MUST do all of its writing synchronously: bun:sqlite
+   * transactions are synchronous, so anything a hook deferred past an `await`
+   * would land after COMMIT. The return type is spelled `void | undefined`
+   * rather than a bare `void` on purpose — TypeScript lets a function of any
+   * return type satisfy a `void`-returning signature, so only the union makes
+   * an `async` hook a compile error. `provisionSections` keeps the equivalent
+   * runtime check as defence in depth.
    */
-  readonly provision?: (tx: AppTransaction, projectId: string, ctx: SectionProvisionContext) => void | Promise<void>;
+  readonly provision?: (tx: AppTransaction, projectId: string, ctx: SectionProvisionContext) => void | undefined;
   /**
    * Guards unmount: while this resolves true the section still holds data and
    * `unmountSection` refuses (no data loss, no soft "disabled" state). A

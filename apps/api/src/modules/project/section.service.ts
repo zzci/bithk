@@ -45,7 +45,10 @@ export function provisionSections(
     const provision = getProjectSection(key)?.provision;
     if (!provision)
       continue;
-    const pending = provision(tx, projectId, ctx);
+    // Typed `unknown` so the runtime guard survives the declared `void`
+    // return: the compile-time rejection of an async hook lives in
+    // `ProjectSectionDefinition`, this stays as the defence in depth.
+    const pending: unknown = provision(tx, projectId, ctx);
     if (pending instanceof Promise)
       throw new Error(`Project section '${key}' provisioned asynchronously; provision hooks must write synchronously inside the transaction`);
   }

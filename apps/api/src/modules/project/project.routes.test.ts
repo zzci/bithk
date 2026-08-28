@@ -14,7 +14,8 @@ import { users } from "@/modules/account/users/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { createRole, listRoles } from "./project.roles";
 import { projectRoutes } from "./project.routes";
-import { addMember, createProject, listMembers, updateProject } from "./project.service";
+import { addMember, createProject, getProjectByShortId, listMembers, updateProject } from "./project.service";
+import { registerProjectSection, resetProjectSectionRegistry } from "./section.registry";
 // Registers the session-cookie auth provider that `authRequired` resolves
 // through — without it the middleware throws.
 import "@/modules/account";
@@ -750,5 +751,266 @@ describe("global procurement categories (admin only)", () => {
     expect(removed.status).toBe(200);
     const missing = await app.request(`/global-procurement-categories/${cat.id}`, jsonReq("DELETE", admin.cookie));
     expect(missing.status).toBe(404);
+  });
+});
+
+describe("POST /projects (preset, section payload, parent)", () => {
+  afterEach(() => {
+    resetProjectSectionRegistry();
+  });
+
+  test("mounts the general three when no preset is given", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    const res = await app.request("/projects", jsonReq("POST", cookie, { name: "Plain" }));
+    expect(res.status).toBe(201);
+    const body = await res.json() as { data: { sections: string[] } };
+    expect(body.data.sections).toEqual(["issues", "procurement", "files"]);
+  });
+
+  test("preset ship mounts the six section keys in preset order", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    const res = await app.request("/projects", jsonReq("POST", cookie, { name: "Ship", preset: "ship" }));
+    expect(res.status).toBe(201);
+    const body = await res.json() as { data: { sections: string[] } };
+    expect(body.data.sections).toEqual(["issues", "procurement", "files", "ship-profile", "equipment", "worklist"]);
+  });
+
+  test("rejects an unknown preset with 422", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    const res = await app.request("/projects", jsonReq("POST", cookie, { name: "Nope", preset: "submarine" }));
+    expect(res.status).toBe(422);
+  });
+
+  test("hands sectionData through to the section's provision hook", async () => {
+    let seen: unknown;
+    registerProjectSection({
+      key: "ship-profile",
+      provision: (_tx, _projectId, ctx) => {
+        seen = ctx.sectionData;
+      },
+    });
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    const res = await app.request("/projects", jsonReq("POST", cookie, {
+      name: "Profiled",
+      preset: "ship",
+      sectionData: { "ship-profile": { hullNumber: "IMO-1" } },
+    }));
+    expect(res.status).toBe(201);
+    expect(seen).toEqual({ "ship-profile": { hullNumber: "IMO-1" } });
+  });
+
+  test("parentId links the new project under an existing parent", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    const parent = await createProject(db, { name: "Fleet", creatorId: (await sessionFor("admin")).userId });
+
+    const res = await app.request("/projects", jsonReq("POST", cookie, { name: "Leg", parentId: parent.shortId }));
+    expect(res.status).toBe(201);
+    const child = (await res.json() as { data: { id: string } }).data;
+
+    const list = await app.request(`/projects/${parent.shortId}/children`, { headers: { Cookie: cookie } });
+    expect((await list.json() as { data: { id: string }[] }).data.map(p => p.id)).toEqual([child.id]);
+  });
+
+  test("a missing parent is 404 and a second hierarchy level is 422", async () => {
+    const app = buildApp(db);
+    const { userId, cookie } = await sessionFor("admin");
+    const parent = await createProject(db, { name: "Fleet", creatorId: userId });
+    const child = await createProject(db, { name: "Leg", creatorId: userId, parentId: parent.shortId });
+
+    const missing = await app.request("/projects", jsonReq("POST", cookie, { name: "Orphan", parentId: "nosuchid" }));
+    expect(missing.status).toBe(404);
+
+    const tooDeep = await app.request("/projects", jsonReq("POST", cookie, { name: "Deep", parentId: child.shortId }));
+    expect(tooDeep.status).toBe(422);
+  });
+});
+
+describe("section mount / unmount routes", () => {
+  afterEach(() => {
+    resetProjectSectionRegistry();
+  });
+
+  test("mounts and unmounts a section, answering with the updated section list", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+
+    const mounted = await app.request(`/projects/${project.shortId}/sections/equipment`, jsonReq("PUT", cookie));
+    expect(mounted.status).toBe(200);
+    expect((await mounted.json() as { data: string[] }).data).toEqual(["issues", "procurement", "files", "equipment"]);
+
+    const unmounted = await app.request(`/projects/${project.shortId}/sections/equipment`, jsonReq("DELETE", cookie));
+    expect(unmounted.status).toBe(200);
+    expect((await unmounted.json() as { data: string[] }).data).toEqual(["issues", "procurement", "files"]);
+  });
+
+  test("refuses to unmount a section that still holds data, keeping it mounted", async () => {
+    registerProjectSection({ key: "issues", hasData: async () => true });
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+
+    const res = await app.request(`/projects/${project.shortId}/sections/issues`, jsonReq("DELETE", cookie));
+    expect(res.status).toBe(409);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe("SECTION_NOT_EMPTY");
+
+    const detail = await app.request(`/projects/${project.shortId}`, { headers: { Cookie: cookie } });
+    expect((await detail.json() as { data: { sections: string[] } }).data.sections).toContain("issues");
+  });
+
+  test("rejects a section key that is neither in a preset nor registered", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+
+    const res = await app.request(`/projects/${project.shortId}/sections/telepathy`, jsonReq("PUT", await cookieForUser(owner)));
+    expect(res.status).toBe(422);
+  });
+
+  test("a member without project.manage can neither mount nor unmount", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
+    const cookie = await cookieForUser(bob);
+
+    expect((await app.request(`/projects/${project.shortId}/sections/equipment`, jsonReq("PUT", cookie))).status).toBe(403);
+    expect((await app.request(`/projects/${project.shortId}/sections/issues`, jsonReq("DELETE", cookie))).status).toBe(403);
+  });
+});
+
+describe("sub-project routes", () => {
+  test("GET lists the live sub-projects for any member", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const parent = await createProject(db, { name: "Fleet", creatorId: owner });
+    await addMember(db, parent.id, { roleId: await memberRoleId(parent.id), userId: bob });
+    const child = await createProject(db, { name: "Leg", creatorId: owner, parentId: parent.shortId });
+
+    const res = await app.request(`/projects/${parent.shortId}/children`, { headers: { Cookie: await cookieForUser(bob) } });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: { id: string; sections: string[] }[] };
+    expect(body.data.map(p => p.id)).toEqual([child.shortId]);
+    expect(body.data[0]?.sections).toEqual(["issues", "procurement", "files"]);
+  });
+
+  test("GET is 404 for a non-member", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const outsider = await sessionFor("user");
+    const parent = await createProject(db, { name: "Fleet", creatorId: owner });
+
+    const res = await app.request(`/projects/${parent.shortId}/children`, { headers: { Cookie: outsider.cookie } });
+    expect(res.status).toBe(404);
+  });
+
+  test("POST creates a sub-project under the parent, with its own preset", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const parent = await createProject(db, { name: "Fleet", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+
+    const res = await app.request(`/projects/${parent.shortId}/children`, jsonReq("POST", cookie, { name: "Leg", preset: "ship" }));
+    expect(res.status).toBe(201);
+    const child = (await res.json() as { data: { id: string; sections: string[] } }).data;
+    expect(child.sections).toHaveLength(6);
+
+    expect((await getProjectByShortId(db, child.id))?.parentId).toBe(parent.id);
+  });
+
+  test("POST ignores a parentId in the body — the route names the parent", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const parent = await createProject(db, { name: "Fleet", creatorId: owner });
+    const other = await createProject(db, { name: "Other", creatorId: owner });
+
+    const res = await app.request(
+      `/projects/${parent.shortId}/children`,
+      jsonReq("POST", await cookieForUser(owner), { name: "Leg", parentId: other.shortId }),
+    );
+    expect(res.status).toBe(201);
+    const child = (await res.json() as { data: { id: string } }).data;
+    expect((await getProjectByShortId(db, child.id))?.parentId).toBe(parent.id);
+  });
+
+  test("PUT links an existing project and DELETE unlinks it without deleting it", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const parent = await createProject(db, { name: "Fleet", creatorId: owner });
+    const loose = await createProject(db, { name: "Loose", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+
+    const linked = await app.request(`/projects/${parent.shortId}/children/${loose.shortId}`, jsonReq("PUT", cookie));
+    expect(linked.status).toBe(200);
+    expect((await getProjectByShortId(db, loose.shortId))?.parentId).toBe(parent.id);
+
+    const unlinked = await app.request(`/projects/${parent.shortId}/children/${loose.shortId}`, jsonReq("DELETE", cookie));
+    expect(unlinked.status).toBe(200);
+    expect((await getProjectByShortId(db, loose.shortId))?.parentId).toBeNull();
+
+    // The child survives the unlink — it is still readable by its own members.
+    const detail = await app.request(`/projects/${loose.shortId}`, { headers: { Cookie: cookie } });
+    expect(detail.status).toBe(200);
+
+    const remaining = await app.request(`/projects/${parent.shortId}/children`, { headers: { Cookie: cookie } });
+    expect((await remaining.json() as { data: unknown[] }).data).toHaveLength(0);
+  });
+
+  test("PUT refuses a link that would make the hierarchy two levels deep", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const parent = await createProject(db, { name: "Fleet", creatorId: owner });
+    const grandParent = await createProject(db, { name: "Group", creatorId: owner });
+    await createProject(db, { name: "Leg", creatorId: owner, parentId: parent.shortId });
+
+    // `parent` already has a child, so it cannot itself become one.
+    const res = await app.request(`/projects/${grandParent.shortId}/children/${parent.shortId}`, jsonReq("PUT", await cookieForUser(owner)));
+    expect(res.status).toBe(422);
+  });
+
+  test("PUT is 404 for a child that does not exist", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const parent = await createProject(db, { name: "Fleet", creatorId: owner });
+
+    const res = await app.request(`/projects/${parent.shortId}/children/nosuchid`, jsonReq("PUT", await cookieForUser(owner)));
+    expect(res.status).toBe(404);
+  });
+
+  test("DELETE refuses to unlink a project that is not this parent's child", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const parent = await createProject(db, { name: "Fleet", creatorId: owner });
+    const otherParent = await createProject(db, { name: "Rival", creatorId: owner });
+    const child = await createProject(db, { name: "Leg", creatorId: owner, parentId: otherParent.shortId });
+
+    const res = await app.request(`/projects/${parent.shortId}/children/${child.shortId}`, jsonReq("DELETE", await cookieForUser(owner)));
+    expect(res.status).toBe(404);
+    expect((await getProjectByShortId(db, child.shortId))?.parentId).toBe(otherParent.id);
+  });
+
+  test("a member without project.manage can read but not create, link or unlink", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const parent = await createProject(db, { name: "Fleet", creatorId: owner });
+    await addMember(db, parent.id, { roleId: await memberRoleId(parent.id), userId: bob });
+    const child = await createProject(db, { name: "Leg", creatorId: owner, parentId: parent.shortId });
+    const loose = await createProject(db, { name: "Loose", creatorId: owner });
+    const cookie = await cookieForUser(bob);
+
+    expect((await app.request(`/projects/${parent.shortId}/children`, { headers: { Cookie: cookie } })).status).toBe(200);
+    expect((await app.request(`/projects/${parent.shortId}/children`, jsonReq("POST", cookie, { name: "Sneaky" }))).status).toBe(403);
+    expect((await app.request(`/projects/${parent.shortId}/children/${loose.shortId}`, jsonReq("PUT", cookie))).status).toBe(403);
+    expect((await app.request(`/projects/${parent.shortId}/children/${child.shortId}`, jsonReq("DELETE", cookie))).status).toBe(403);
   });
 });
