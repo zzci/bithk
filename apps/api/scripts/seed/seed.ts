@@ -832,6 +832,8 @@ async function importHr(db: AppDatabase): Promise<{ colleagues: number; approval
       paymentInfo: c.paymentInfo,
       emergencyContacts: c.emergencyContacts,
     });
+    if (!colleague)
+      throw new Error(`HR colleague ${c.key} was not created`);
     colleagueId.set(c.key, colleague.id);
   }
 
@@ -845,6 +847,8 @@ async function importHr(db: AppDatabase): Promise<{ colleagues: number; approval
       title: a.title,
       reason: a.reason,
     });
+    if (!approval)
+      throw new Error(`HR approval for colleague ${a.colleague} was not created`);
     // Decided records exercise the approve/reject path; pending ones stay open.
     if (a.decision === "approved" || a.decision === "rejected") {
       await decideApproval(db, approval.id, {
@@ -868,6 +872,8 @@ async function importHr(db: AppDatabase): Promise<{ colleagues: number; approval
       currency: p.currency,
       notes: p.notes,
     });
+    if (!record)
+      throw new Error(`HR payroll record for colleague ${p.colleague} was not created`);
     // The pending -> paid transition is one-way; only mark records flagged paid.
     if (p.status === "paid")
       await updatePayrollRecord(db, record.id, { status: "paid" });

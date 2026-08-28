@@ -23,6 +23,7 @@ import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities"
 import { useFavoriteSet, useToggleFavorite } from "@/shared/lib/api/favorites";
 import {
   hasSection,
+  shipProfileSummary,
   useCreateProject,
   useProject,
   useProjectMembers,
@@ -312,7 +313,7 @@ function ProjectsGrid({
                 with the vessel's identity; every other project keeps the plain
                 description. No `type` column exists — the sections decide. */}
             {hasSection(project, "ship-profile")
-              ? <ProjectShipIdentity projectId={project.id} />
+              ? <ProjectShipIdentity profile={shipProfileSummary(project)} />
               : project.description?.trim() && (
                 <p className="line-clamp-2 text-sm text-muted-foreground">
                   {project.description}

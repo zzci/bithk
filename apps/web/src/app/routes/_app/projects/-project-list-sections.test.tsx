@@ -252,3 +252,72 @@ describe("ship-preset create", () => {
     expect("sectionData" in payload).toBe(false);
   });
 });
+
+// FIX-071: the maritime particulars ride on the list row itself
+// (`sectionSummary["ship-profile"]`), so a page of ship cards costs exactly one
+// request. The `/ship-profile` endpoint is mocked to FAIL here — a card that
+// still fetched its own profile would render nothing.
+describe("ship cards render from the list payload", () => {
+  /** `count` ship rows, each carrying its own profile summary on the row. */
+  function mockShipPage(count: number) {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/tags"))
+        return jsonResponse({ success: true, data: TAGS });
+      if (url.includes("/ship-profile"))
+        return new Response("gone", { status: 500 });
+      const rows = Array.from({ length: count }, (_, i) => project({
+        id: `p${i + 1}`,
+        name: `Ship ${i + 1}`,
+        sectionSummary: {
+          "ship-profile": {
+            hullNumber: `HULL-${i + 1}`,
+            shipStatus: "active",
+            imoNumber: `IMO-${i + 1}`,
+            mmsi: `MMSI-${i + 1}`,
+          },
+        },
+      }));
+      return jsonResponse({ success: true, data: rows, meta: { total: count, page: 1, limit: 20 } });
+    });
+  }
+
+  it("renders a full page of ship cards without a per-card profile lookup", async () => {
+    mockShipPage(20);
+    renderWithProviders(<ProjectsListPage />);
+
+    expect(await screen.findByText("HULL-1")).toBeInTheDocument();
+    // Every card in the page, not just the first — the summary travels with
+    // each row rather than being fetched card by card.
+    expect(screen.getByText("HULL-20")).toBeInTheDocument();
+    expect(screen.getByText("IMO-20")).toBeInTheDocument();
+    expect(screen.getByText("MMSI-20")).toBeInTheDocument();
+
+    // ONE request carried all twenty cards. The only other list URLs are the
+    // fixed `limit=1` status-count probes behind the Status filter, which do
+    // not grow with the number of rows.
+    expect(listUrls().filter(url => url.includes("limit=20"))).toHaveLength(1);
+    // ...and not one card asked for its own profile.
+    expect(fetchMock.mock.calls.some(call => String(call[0]).includes("/ship-profile"))).toBe(false);
+  });
+
+  it("leaves a general project's card on its plain description body", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/tags"))
+        return jsonResponse({ success: true, data: TAGS });
+      if (url.includes("/ship-profile"))
+        return new Response("gone", { status: 500 });
+      return jsonResponse({
+        success: true,
+        data: [project({ sections: ["issues", "procurement", "files"] })],
+        meta: { total: 1, page: 1, limit: 20 },
+      });
+    });
+    renderWithProviders(<ProjectsListPage />);
+
+    expect(await screen.findByText("Flagship refit programme")).toBeInTheDocument();
+    expect(screen.queryByText("HULL-1")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(call => String(call[0]).includes("/ship-profile"))).toBe(false);
+  });
+});

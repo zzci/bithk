@@ -153,6 +153,11 @@ const projectViewSchema = z.object({
   // Mounted section keys in tab order (PLAN-108 §2) — the single source of
   // truth for what this project is.
   sections: z.array(z.string()),
+  // Opaque per-section contribution to a LIST row, keyed by section key
+  // (FIX-071). The project module deliberately does not know any section's
+  // shape — the contract here is "an object per section" and nothing more; the
+  // owning section's own view schema documents what is inside it.
+  sectionSummary: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
   coverImageUrl: z.string().nullable(),
   creatorId: z.string(),
   version: z.number(),
