@@ -90,6 +90,26 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   capped at `80vh` height and `min(90vw, 64rem)` width with the aspect ratio
   kept, and clicking the blank area around the picture dismisses it (Escape
   already did).
+- The four remaining non-English code comments were translated to English
+  (CHORE-006), so the source tree now matches the repository's English-only
+  rule for code and comments. The language switcher's own Chinese option label
+  is content, not a comment, and is unchanged.
+- `apps/api/scripts` is now covered by typecheck (CHORE-007), and `apps/web`'s
+  root config files (`vite.config.ts`, `vitest.config.ts`) with it. Both
+  tsconfig `include` lists stopped at `src`, so the seed script, the API doc
+  and spec generators, and the two web configs compiled only when executed —
+  the gap that let stale seed references pass a green quality gate during
+  PLAN-108. The repository root itself is still uncovered; that is tracked
+  separately as CHORE-008.
+
+### Fixed
+
+- A page of ship project cards renders in one request instead of one profile
+  request per card (FIX-071). `GET /projects` list rows now carry a batched
+  per-section profile summary — resolved in the same batch pass the list
+  already does for section sets — and the card reads the maritime particulars
+  from the list payload rather than issuing its own lookup. Cards for projects
+  without the `ship-profile` section are unchanged.
 
 ## v0.3.13 — 2026-08-02
 
