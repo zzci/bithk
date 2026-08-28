@@ -1,3 +1,4 @@
+import type { SectionProvisionContext } from "./section.registry";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
@@ -11,6 +12,7 @@ import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
+import { ValidationError } from "@/shared/lib/errors";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { createRole, listRoles } from "./project.roles";
 import { projectRoutes } from "./project.routes";
@@ -816,6 +818,79 @@ describe("section mount / unmount routes", () => {
 
     const detail = await app.request(`/projects/${project.shortId}`, { headers: { Cookie: cookie } });
     expect((await detail.json() as { data: { sections: string[] } }).data.sections).toContain("issues");
+  });
+
+  test("mounts with no body at all, provisioning the section on its own defaults", async () => {
+    let captured: SectionProvisionContext | undefined;
+    let calls = 0;
+    registerProjectSection({
+      key: "equipment",
+      provision: (_tx, _projectId, ctx) => {
+        calls += 1;
+        captured = ctx;
+      },
+    });
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+
+    const res = await app.request(`/projects/${project.shortId}/sections/equipment`, jsonReq("PUT", await cookieForUser(owner)));
+
+    expect(res.status).toBe(200);
+    expect(calls).toBe(1);
+    expect(captured?.sectionData).toBeUndefined();
+  });
+
+  test("hands the optional body's sectionData to the mounted section's provision hook", async () => {
+    let captured: SectionProvisionContext | undefined;
+    registerProjectSection({ key: "ship-profile", provision: (_tx, _projectId, ctx) => void (captured = ctx) });
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+
+    const res = await app.request(
+      `/projects/${project.shortId}/sections/ship-profile`,
+      jsonReq("PUT", await cookieForUser(owner), { sectionData: { hullNumber: "HULL-1" } }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(captured?.sectionData).toEqual({ "ship-profile": { hullNumber: "HULL-1" } });
+  });
+
+  test("422s a body that is present but not valid JSON instead of mounting on defaults", async () => {
+    let calls = 0;
+    registerProjectSection({ key: "equipment", provision: () => void (calls += 1) });
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+
+    const res = await app.request(`/projects/${project.shortId}/sections/equipment`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "Cookie": await cookieForUser(owner) },
+      body: "{ not json",
+    });
+
+    expect(res.status).toBe(422);
+    expect(calls).toBe(0);
+  });
+
+  test("a provision failure leaves the section unmounted rather than half-mounted", async () => {
+    registerProjectSection({
+      key: "ship-profile",
+      provision: () => {
+        throw new ValidationError("Invalid ship-profile section data", { hullNumber: "Already exists" });
+      },
+    });
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+
+    const res = await app.request(`/projects/${project.shortId}/sections/ship-profile`, jsonReq("PUT", cookie));
+    expect(res.status).toBe(422);
+
+    const detail = await app.request(`/projects/${project.shortId}`, { headers: { Cookie: cookie } });
+    expect((await detail.json() as { data: { sections: string[] } }).data.sections).not.toContain("ship-profile");
   });
 
   test("rejects a section key that is neither in a preset nor registered", async () => {

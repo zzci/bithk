@@ -22167,6 +22167,26 @@
           "projects"
         ],
         "summary": "Mount a section on a project",
+        "description": "Mounts the section and runs its provisioning in one transaction, so a late mount is seeded exactly like the create-time preset would have been. The body is optional; when supplied it must be `{ \"sectionData\": { … } }`, carrying this one section's create payload (e.g. `{ \"sectionData\": { \"hullNumber\": \"HULL-1\" } }` for `ship-profile`).",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sectionData": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success",
@@ -22303,7 +22323,7 @@
             }
           },
           "422": {
-            "description": "Unknown section key",
+            "description": "Unknown section key, or section data the section rejected",
             "content": {
               "application/json": {
                 "schema": {

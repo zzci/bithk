@@ -14,9 +14,14 @@
 import type { ProjectCapability } from "./schema";
 import type { AppDatabase, AppTransaction } from "@/db";
 
-/** What a section's `provision` hook gets when a project is created. */
+/** What a section's `provision` hook gets when the section is mounted. */
 export interface SectionProvisionContext {
-  readonly preset: ProjectPreset;
+  /**
+   * The preset the project was created with, or undefined when the section was
+   * mounted onto an existing project (`mountSection`) — a late mount answers to
+   * no preset. A hook that reads it must handle the absent case.
+   */
+  readonly preset?: ProjectPreset;
   readonly now: string;
   readonly creatorId: string;
   /** Raw per-section create payload, keyed by section key (see CreateProjectInput.sectionData). */
@@ -33,9 +38,11 @@ export interface ProjectSectionDefinition {
    */
   readonly capabilities?: readonly ProjectCapability[];
   /**
-   * Copy-on-create hook, run inside the project-creation transaction right
-   * after the mount rows are written (e.g. procurement copies the global
-   * category template). Omit for sections that need no seeded data.
+   * Copy-on-mount hook, run inside the transaction that writes the mount row
+   * (e.g. procurement copies the global category template). It runs on BOTH
+   * mount paths — the preset at project creation and a later `mountSection` —
+   * so "section mounted" and "the rows it seeds exist" stay equivalent
+   * (PLAN-108 §5). Omit for sections that need no seeded data.
    *
    * A provision hook MUST do all of its writing synchronously: bun:sqlite
    * transactions are synchronous, so anything a hook deferred past an `await`

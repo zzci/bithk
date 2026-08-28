@@ -5,7 +5,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
-import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, jsonRequestBody, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { optionalPageQueryFields } from "@/shared/lib/pagination";
 import { parseTagIds } from "@/shared/lib/route-params";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
@@ -54,6 +54,16 @@ const sectionCreateShape = {
   preset: z.enum(Object.keys(PROJECT_PRESETS) as ProjectPreset[]).default(DEFAULT_PROJECT_PRESET),
   sectionData: z.record(z.string(), z.unknown()).optional(),
 };
+
+// The mount body (PLAN-108 §3). Optional in full: `PUT .../sections/:key` with
+// no body at all mounts the section on its own defaults. When present it is
+// always the enveloped form `{ "sectionData": { … } }`, whose value is THIS
+// section's slice — the same payload `POST /projects` would carry under
+// `sectionData[<key>]`, minus the key (the URL already names it). Shape-checked
+// only: each section validates its own slice inside its `provision` hook.
+const mountSectionSchema = z.object({
+  sectionData: z.record(z.string(), z.unknown()).optional(),
+});
 
 const createProjectSchema = z.object({
   code: z.string().min(1).max(100).optional(),
@@ -215,6 +225,23 @@ function assertGrantWithinCaps(
 interface ProjectAccess {
   readonly projectId: string;
   readonly capabilities: ReadonlySet<ProjectCapability>;
+}
+
+/**
+ * Read a JSON body that the route treats as optional, returning undefined for a
+ * request that carried none. Only an absent body is tolerated — a body that is
+ * present but malformed is still a 422, not a silent default.
+ */
+async function readOptionalJsonBody(c: Context<ProtectedEnv>): Promise<unknown> {
+  const raw = (await c.req.text()).trim();
+  if (raw === "")
+    return undefined;
+  try {
+    return JSON.parse(raw);
+  }
+  catch {
+    throw new ValidationError("Request body is not valid JSON", { body: "Invalid JSON" });
+  }
 }
 
 /**
@@ -517,12 +544,14 @@ export function projectRoutes() {
     describeRoute({
       tags: ["projects"],
       summary: "Mount a section on a project",
+      description: "Mounts the section and runs its provisioning in one transaction, so a late mount is seeded exactly like the create-time preset would have been. The body is optional; when supplied it must be `{ \"sectionData\": { … } }`, carrying this one section's create payload (e.g. `{ \"sectionData\": { \"hullNumber\": \"HULL-1\" } }` for `ship-profile`).",
+      requestBody: jsonRequestBody(mountSectionSchema),
       responses: {
         200: okJson(z.array(z.string())),
         401: { description: "Unauthenticated", ...errorJson },
         403: { description: "Forbidden", ...errorJson },
         404: { description: "Project not found or not a member", ...errorJson },
-        422: { description: "Unknown section key", ...errorJson },
+        422: { description: "Unknown section key, or section data the section rejected", ...errorJson },
       },
     }),
     validator("param", sectionParam, onValidationFailure),
@@ -530,7 +559,8 @@ export function projectRoutes() {
       const { id, key } = c.req.valid("param");
       const { projectId } = await requireProject(c, id, "project.manage");
       const db = c.get("db");
-      await mountSection(db, projectId, key);
+      const body = mountSectionSchema.parse(await readOptionalJsonBody(c) ?? {});
+      await mountSection(db, projectId, key, body.sectionData);
       return c.json({ success: true, data: await listSections(db, projectId) });
     },
   );

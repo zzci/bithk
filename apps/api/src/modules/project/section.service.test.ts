@@ -1,3 +1,4 @@
+import type { SectionProvisionContext } from "./section.registry";
 import type { AppDatabase } from "@/db";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
@@ -9,6 +10,7 @@ import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
+import { ValidationError } from "@/shared/lib/errors";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { createProject } from "./project.service";
 import { projects, projectSections } from "./schema";
@@ -262,6 +264,114 @@ describe("mountSection", () => {
     await mountSection(db, project.id, "files");
 
     expect((await sectionRow(project.id, "files"))?.sortOrder).toBe(0);
+  });
+
+  test("404s a project that does not exist rather than writing an orphan mount row", async () => {
+    await expect(mountSection(db, "no-such-project", "files")).rejects.toMatchObject({
+      statusCode: 404,
+      code: "NOT_FOUND",
+    });
+  });
+});
+
+// A late mount must seed the section exactly as the create-time preset would
+// have, or "section mounted" and "the section's rows exist" stop being
+// equivalent (PLAN-108 §5) and the section becomes a dead end.
+describe("mountSection provisioning", () => {
+  test("runs the mounted section's provision hook with no preset and the project's creator", async () => {
+    let captured: SectionProvisionContext | undefined;
+    registerProjectSection({ key: "equipment", provision: (_tx, _projectId, ctx) => void (captured = ctx) });
+    const creator = await seedUser();
+    const project = await createProject(db, { name: "Alpha", creatorId: creator });
+
+    await mountSection(db, project.id, "equipment");
+
+    expect(captured?.preset).toBeUndefined();
+    expect(captured?.creatorId).toBe(creator);
+    expect(captured?.sectionData).toBeUndefined();
+    expect((await sectionRow(project.id, "equipment"))?.createdAt).toBe(captured?.now);
+  });
+
+  test("hands the supplied payload to the hook under the section's own key", async () => {
+    let captured: SectionProvisionContext | undefined;
+    registerProjectSection({ key: "ship-profile", provision: (_tx, _projectId, ctx) => void (captured = ctx) });
+    const creator = await seedUser();
+    const project = await createProject(db, { name: "Alpha", creatorId: creator });
+
+    await mountSection(db, project.id, "ship-profile", { hullNumber: "HULL-1" });
+
+    // The same shape `provisionSections` passes, so a hook reads one slice
+    // regardless of which path mounted it.
+    expect(captured?.sectionData).toEqual({ "ship-profile": { hullNumber: "HULL-1" } });
+  });
+
+  test("commits the hook's writes with the mount row", async () => {
+    registerProjectSection({
+      key: "equipment",
+      provision: (tx, projectId, ctx) => {
+        tx.insert(projectSections).values({ projectId, key: "seeded", sortOrder: 990, createdAt: ctx.now }).run();
+      },
+    });
+    const creator = await seedUser();
+    const project = await createProject(db, { name: "Alpha", creatorId: creator });
+
+    await mountSection(db, project.id, "equipment");
+
+    expect(await hasSection(db, project.id, "equipment")).toBe(true);
+    expect(await hasSection(db, project.id, "seeded")).toBe(true);
+  });
+
+  test("rolls the mount row back when the hook throws, leaving no half-mounted section", async () => {
+    registerProjectSection({
+      key: "equipment",
+      provision: (tx, projectId, ctx) => {
+        tx.insert(projectSections).values({ projectId, key: "seeded", sortOrder: 990, createdAt: ctx.now }).run();
+        throw new ValidationError("Invalid equipment section data", { name: "Required" });
+      },
+    });
+    const creator = await seedUser();
+    const project = await createProject(db, { name: "Alpha", creatorId: creator });
+
+    await expect(mountSection(db, project.id, "equipment")).rejects.toMatchObject({ statusCode: 422 });
+
+    expect(await listSections(db, project.id)).toEqual(["issues", "procurement", "files"]);
+    expect(await hasSection(db, project.id, "seeded")).toBe(false);
+  });
+
+  test("does not provision twice when an already-mounted section is re-mounted", async () => {
+    let calls = 0;
+    registerProjectSection({ key: "issues", provision: () => void (calls += 1) });
+    const creator = await seedUser();
+    const project = await createProject(db, { name: "Alpha", creatorId: creator });
+    expect(calls).toBe(1);
+
+    await mountSection(db, project.id, "issues");
+
+    expect(calls).toBe(1);
+  });
+
+  test("provisions again after an unmount — a re-mount rebuilds an emptied section", async () => {
+    let calls = 0;
+    registerProjectSection({ key: "issues", provision: () => void (calls += 1) });
+    const creator = await seedUser();
+    const project = await createProject(db, { name: "Alpha", creatorId: creator });
+    await unmountSection(db, project.id, "issues");
+
+    await mountSection(db, project.id, "issues");
+
+    expect(calls).toBe(2);
+    expect(await hasSection(db, project.id, "issues")).toBe(true);
+  });
+
+  test("rejects an async provision hook on the mount path too", async () => {
+    // @ts-expect-error an async provision hook is rejected at compile time; the
+    // runtime guard asserted below is the defence in depth behind it.
+    registerProjectSection({ key: "equipment", provision: async () => {} });
+    const creator = await seedUser();
+    const project = await createProject(db, { name: "Alpha", creatorId: creator });
+
+    await expect(mountSection(db, project.id, "equipment")).rejects.toThrow(/synchronously/);
+    expect(await hasSection(db, project.id, "equipment")).toBe(false);
   });
 });
 
