@@ -283,6 +283,23 @@ describe("equipment CRUD", () => {
     const crossDelete = await app.request(`/projects/${shipBShortId}/equipment/${equipmentId}`, jsonReq("DELETE", shipA.adminCookie));
     expect(crossDelete.status).toBe(404);
   });
+
+  // The re-key from `ship_id` to `project_id` (PLAN-108) is exactly the kind of
+  // change that drops a list-level scoping filter: the per-id verbs above would
+  // still 404 while `GET /equipment` quietly returned the whole fleet.
+  test("a project's equipment list contains only its own rows", async () => {
+    const app = buildApp(db);
+    const shipA = await createShipAsAdmin(app, "A");
+    const shipBShortId = (await createProject(db, { name: "B", creatorId: shipA.adminId, preset: "ship" })).shortId;
+
+    await createEquipment(app, shipA.shipShortId, shipA.adminCookie, { name: "Only on A" });
+    await createEquipment(app, shipBShortId, shipA.adminCookie, { name: "Only on B" });
+
+    const listA = (await (await app.request(`/projects/${shipA.shipShortId}/equipment`, { headers: { Cookie: shipA.adminCookie } })).json()) as { data: { name: string }[] };
+    expect(listA.data.map(e => e.name)).toEqual(["Only on A"]);
+    const listB = (await (await app.request(`/projects/${shipBShortId}/equipment`, { headers: { Cookie: shipA.adminCookie } })).json()) as { data: { name: string }[] };
+    expect(listB.data.map(e => e.name)).toEqual(["Only on B"]);
+  });
 });
 
 describe("equipment authz", () => {

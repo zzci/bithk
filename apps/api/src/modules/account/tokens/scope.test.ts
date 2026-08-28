@@ -1,6 +1,7 @@
+import type { TokenScopeMap } from "./scope";
 import { describe, expect, test } from "bun:test";
 import { protectedRoutes } from "@/routes/protected";
-import { TOKEN_MODULES, tokenModuleForPath } from "@/shared/module-manifest";
+import { TOKEN_MODULE_KEYS, TOKEN_MODULES, tokenModuleForPath } from "@/shared/module-manifest";
 import {
   isValidScopeInput,
   levelForMethod,
@@ -35,6 +36,73 @@ describe("tokenModuleForPath", () => {
   test("does not confuse /shares with /shared", () => {
     expect(tokenModuleForPath("/shared/tok")).toBe("documents");
     expect(tokenModuleForPath("/shares/links")).toBe("shares");
+  });
+
+  // PLAN-108 folded the ship module into the projects domain: the three
+  // fleet-wide admin prefixes moved from the `ships` scope to `projects`, and
+  // the `ships` scope itself is gone. A token scoped to `projects` must reach
+  // all three; nothing may still be routed to `ships`.
+  test("the fleet-wide admin prefixes are claimed by projects, not ships", () => {
+    expect(tokenModuleForPath("/worklists")).toBe("projects");
+    expect(tokenModuleForPath("/worklists/abc12345")).toBe("projects");
+    expect(tokenModuleForPath("/global-equipment-categories")).toBe("projects");
+    expect(tokenModuleForPath("/global-equipment-categories/abc12345")).toBe("projects");
+    expect(tokenModuleForPath("/global-equipment-manufacturers")).toBe("projects");
+    expect(tokenModuleForPath("/global-equipment-manufacturers/abc12345")).toBe("projects");
+  });
+
+  test("the project-scoped ship surfaces route to projects too", () => {
+    expect(tokenModuleForPath("/projects/abc12345/ship-profile")).toBe("projects");
+    expect(tokenModuleForPath("/projects/abc12345/equipment")).toBe("projects");
+    expect(tokenModuleForPath("/projects/abc12345/equipment-categories")).toBe("projects");
+    expect(tokenModuleForPath("/projects/abc12345/referenceable-worklists")).toBe("projects");
+    expect(tokenModuleForPath("/projects/abc12345/sections/ship-profile")).toBe("projects");
+  });
+
+  test("no ships scope module exists and /ships is unclaimed", () => {
+    // `TokenModuleKey` is derived from the manifest, so "ships" is not even a
+    // valid comparison target any more — assert the runtime lists too.
+    expect(TOKEN_MODULE_KEYS).not.toContain("ships");
+    expect(TOKEN_MODULES.flatMap(m => m.prefixes)).not.toContain("/ships");
+    expect(tokenModuleForPath("/ships")).toBeNull();
+    expect(tokenModuleForPath("/ships/abc12345/equipment")).toBeNull();
+  });
+});
+
+describe("a projects-scoped token after the ship fold", () => {
+  const scopes: TokenScopeMap = { projects: "write" };
+
+  const SHIP_PATHS = [
+    "/worklists",
+    "/global-equipment-categories",
+    "/global-equipment-manufacturers",
+    "/projects/abc12345/ship-profile",
+    "/projects/abc12345/equipment",
+    "/projects/abc12345/equipment-categories",
+    "/projects/abc12345/worklists",
+  ];
+
+  test("reaches every re-keyed ship prefix for both read and write", () => {
+    for (const path of SHIP_PATHS) {
+      const module = tokenModuleForPath(path);
+      expect(module).toBe("projects");
+      for (const method of ["GET", "POST", "PATCH", "DELETE"])
+        expect(scopeSatisfies(scopes[module as "projects"], levelForMethod(method))).toBe(true);
+    }
+  });
+
+  test("a read-only projects token still reads them but cannot write them", () => {
+    const readOnly: TokenScopeMap = { projects: "read" };
+    for (const path of SHIP_PATHS) {
+      expect(scopeSatisfies(readOnly.projects, levelForMethod("GET"))).toBe(true);
+      expect(scopeSatisfies(readOnly.projects, levelForMethod("POST"))).toBe(false);
+      expect(tokenModuleForPath(path)).toBe("projects");
+    }
+  });
+
+  test("a token can no longer be scoped to ships", () => {
+    expect(isValidScopeInput({ ships: "read" })).toBe(false);
+    expect(parseScopes(JSON.stringify({ ships: "write", projects: "read" }))).toEqual({ projects: "read" });
   });
 });
 
