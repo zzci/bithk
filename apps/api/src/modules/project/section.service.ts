@@ -1,6 +1,7 @@
 // Section mount/unmount service (PLAN-108 §2/§3). Owns every read and write of
 // `project_sections`; nothing else touches that table directly.
 
+import type { SQL } from "drizzle-orm";
 import type { ProjectPreset, SectionProvisionContext } from "./section.registry";
 import type { AppDatabase, AppTransaction } from "@/db";
 import { and, asc, eq, inArray, max } from "drizzle-orm";
@@ -171,6 +172,25 @@ export async function loadSectionsForProjects(
       result.set(r.projectId, [r.key]);
   }
   return result;
+}
+
+/**
+ * A `projects` WHERE condition keeping only the rows with `key` mounted, for
+ * the list endpoint's section filter (PLAN-108 §8). It lives here so
+ * `project_sections` keeps its single owner, and it is a condition rather than
+ * an id array so the list stays ONE query and filters BEFORE pagination.
+ *
+ * Written key-first (`WHERE key = ?`, projecting `project_id`) so the subquery
+ * rides `project_sections_key_idx (key, project_id)` as a covering index —
+ * the index PLAN-108 §2 added for exactly this read.
+ */
+export function sectionMountedFilter(db: AppDatabase, key: string): SQL {
+  return inArray(
+    projects.id,
+    db.select({ projectId: projectSections.projectId })
+      .from(projectSections)
+      .where(eq(projectSections.key, key)),
+  );
 }
 
 export async function hasSection(db: AppDatabase, projectId: string, key: string): Promise<boolean> {

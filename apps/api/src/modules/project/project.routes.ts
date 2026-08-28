@@ -41,7 +41,7 @@ import {
   updateProject,
 } from "./project.service";
 import { PROJECT_CAPABILITIES, PROJECT_STATUSES } from "./schema";
-import { DEFAULT_PROJECT_PRESET, PROJECT_PRESETS } from "./section.registry";
+import { DEFAULT_PROJECT_PRESET, PRESET_SECTION_KEYS, PROJECT_PRESETS } from "./section.registry";
 import { listSections, mountSection, unmountSection } from "./section.service";
 
 const tagsShape = { tags: z.array(z.string().min(1).max(50)).max(50).optional() };
@@ -97,6 +97,10 @@ const updateProjectSchema = z.object({
 const listSchema = z.object({
   status: z.enum(PROJECT_STATUSES).optional(),
   q: z.string().min(1).max(200).optional(),
+  // Mounted-section filter (PLAN-108 §8) — the sidebar's "Ships" entry is
+  // `?section=ship-profile`. Enumerated against the known keys on purpose: a
+  // typo must be a loud 422, not a silently empty list.
+  section: z.enum(PRESET_SECTION_KEYS).optional(),
   ...optionalPageQueryFields(100),
 });
 

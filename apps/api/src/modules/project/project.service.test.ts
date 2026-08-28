@@ -444,6 +444,69 @@ describe("listProjects", () => {
     const theirs = await listProjects(db, { memberUserId: outsider });
     expect(theirs.total).toBe(0);
   });
+
+  test("section filters in SQL before pagination, so total and every page describe the filtered set", async () => {
+    const creator = await seedUser("Alice");
+    // Interleaved so a page-local filter would drop ships off page 1: with a
+    // limit of 3 the unfiltered first page holds only two of the five ships.
+    for (let i = 1; i <= 5; i++) {
+      await createProject(db, { name: `Ship ${i}`, creatorId: creator, preset: "ship" });
+      if (i <= 4)
+        await createProject(db, { name: `Plain ${i}`, creatorId: creator });
+    }
+
+    const page1 = await listProjects(db, { section: "ship-profile", page: 1, limit: 3 });
+    const page2 = await listProjects(db, { section: "ship-profile", page: 2, limit: 3 });
+
+    // `total` counts the filtered set (5 ships), not the 9 projects that exist.
+    expect(page1.total).toBe(5);
+    expect(page2.total).toBe(5);
+    // A full page, then the remainder — the filter ran before LIMIT/OFFSET.
+    expect(page1.data).toHaveLength(3);
+    expect(page2.data).toHaveLength(2);
+    expect([...page1.data, ...page2.data].map(p => p.name).sort())
+      .toEqual(["Ship 1", "Ship 2", "Ship 3", "Ship 4", "Ship 5"]);
+  });
+
+  test("an unmatched section yields an empty list, not the unfiltered one", async () => {
+    const creator = await seedUser("Alice");
+    await createProject(db, { name: "Plain", creatorId: creator });
+
+    const listed = await listProjects(db, { section: "ship-profile" });
+    expect(listed.total).toBe(0);
+    expect(listed.data).toEqual([]);
+  });
+
+  test("a section-filtered row still carries its full sections array (batch loader intact)", async () => {
+    const creator = await seedUser("Alice");
+    await createProject(db, { name: "Vessel", creatorId: creator, preset: "ship" });
+    await createProject(db, { name: "Plain", creatorId: creator });
+
+    const listed = await listProjects(db, { section: "ship-profile" });
+    expect(listed.data.map(p => p.name)).toEqual(["Vessel"]);
+    // The filter narrows rows; it must not narrow what each row reports.
+    expect(listed.data[0]!.sections)
+      .toEqual(["issues", "procurement", "files", "ship-profile", "equipment", "worklist"]);
+  });
+
+  test("section composes with q and memberUserId instead of widening either", async () => {
+    const owner = await seedUser("Owner");
+    const outsider = await seedUser("Outsider");
+    await createProject(db, { name: "Atlas Refit", creatorId: owner, preset: "ship" });
+    await createProject(db, { name: "Bridge Refit", creatorId: owner, preset: "ship" });
+    await createProject(db, { name: "Atlas Office", creatorId: owner });
+
+    // section ∧ q: only the ship whose name matches.
+    const byBoth = await listProjects(db, { section: "ship-profile", q: "atlas", memberUserId: owner });
+    expect(byBoth.total).toBe(1);
+    expect(byBoth.data.map(p => p.name)).toEqual(["Atlas Refit"]);
+
+    // Member scoping still wins: a section filter must not reveal a project the
+    // caller is not a member of.
+    const stranger = await listProjects(db, { section: "ship-profile", memberUserId: outsider });
+    expect(stranger.total).toBe(0);
+    expect(stranger.data).toEqual([]);
+  });
 });
 
 describe("access helpers", () => {

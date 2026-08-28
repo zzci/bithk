@@ -333,6 +333,55 @@ describe("GET /projects (list scoping)", () => {
     const repeatedBody = await repeated.json() as { data: { name: string }[] };
     expect(repeatedBody.data.map(p => p.name).sort()).toEqual(["A", "C"]);
   });
+
+  test("the section param filters server-side, so meta describes the filtered set on every page", async () => {
+    const app = buildApp(db);
+    const admin = await sessionFor("admin");
+    for (let i = 1; i <= 5; i++) {
+      await createProject(db, { name: `Ship ${i}`, creatorId: admin.userId, preset: "ship" });
+      if (i <= 4)
+        await createProject(db, { name: `Plain ${i}`, creatorId: admin.userId });
+    }
+
+    const page1 = await app.request("/projects?section=ship-profile&limit=3", { headers: { Cookie: admin.cookie } });
+    expect(page1.status).toBe(200);
+    const body1 = await page1.json() as { data: { name: string }[]; meta: { total: number; page: number; limit: number } };
+    // 5 ships out of 9 projects: `total` is the filtered count, not the whole list.
+    expect(body1.meta).toEqual({ total: 5, page: 1, limit: 3 });
+    expect(body1.data).toHaveLength(3);
+
+    const page2 = await app.request("/projects?section=ship-profile&limit=3&page=2", { headers: { Cookie: admin.cookie } });
+    const body2 = await page2.json() as { data: { name: string }[]; meta: { total: number; page: number; limit: number } };
+    expect(body2.meta).toEqual({ total: 5, page: 2, limit: 3 });
+    expect([...body1.data, ...body2.data].map(p => p.name).sort())
+      .toEqual(["Ship 1", "Ship 2", "Ship 3", "Ship 4", "Ship 5"]);
+  });
+
+  test("an unknown section key is a loud 422, not a silently empty list", async () => {
+    const app = buildApp(db);
+    const admin = await sessionFor("admin");
+    await createProject(db, { name: "Ship", creatorId: admin.userId, preset: "ship" });
+
+    const res = await app.request("/projects?section=ship-profil", { headers: { Cookie: admin.cookie } });
+    expect(res.status).toBe(422);
+  });
+
+  test("the section filter cannot widen a non-admin's visibility", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const outsider = await sessionFor("user");
+    await createProject(db, { name: "Vessel", creatorId: owner, preset: "ship" });
+
+    const mine = await app.request("/projects?section=ship-profile", { headers: { Cookie: await cookieForUser(owner) } });
+    const mineBody = await mine.json() as { data: { name: string; sections: string[] }[]; meta: { total: number } };
+    expect(mineBody.meta.total).toBe(1);
+    // The filtered row still reports every section it has mounted.
+    expect(mineBody.data[0]!.sections)
+      .toEqual(["issues", "procurement", "files", "ship-profile", "equipment", "worklist"]);
+
+    const theirs = await app.request("/projects?section=ship-profile", { headers: { Cookie: outsider.cookie } });
+    expect((await theirs.json() as { meta: { total: number } }).meta.total).toBe(0);
+  });
 });
 
 describe("GET /projects/:id (detail + fail-closed)", () => {

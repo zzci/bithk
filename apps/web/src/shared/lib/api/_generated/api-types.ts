@@ -12933,6 +12933,7 @@ export interface operations {
             readonly query?: {
                 readonly status?: "active" | "archived";
                 readonly q?: string;
+                readonly section?: "issues" | "procurement" | "files" | "ship-profile" | "equipment" | "worklist";
                 readonly page?: number;
                 readonly limit?: number;
             };

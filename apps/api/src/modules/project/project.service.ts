@@ -25,7 +25,7 @@ import { nanoid, ulid } from "@/shared/lib/id";
 import { parseCapabilities, resolveRole, seedDefaultRoles } from "./project.roles";
 import { projectMembers, projectRoles, projects } from "./schema";
 import { DEFAULT_PROJECT_PRESET } from "./section.registry";
-import { listSections, loadSectionsForProjects, provisionSections } from "./section.service";
+import { listSections, loadSectionsForProjects, provisionSections, sectionMountedFilter } from "./section.service";
 
 /** Settings key backing the admin "Project Defaults" cover picker. */
 export const PROJECT_DEFAULT_COVER_KEY = "project.defaults.coverReferenceId";
@@ -374,6 +374,10 @@ export interface ListProjectParams {
   // caller explicitly filters `status: "archived"`). No effect when `status`
   // is set. Defaults to off so other callers (e.g. search) are unchanged.
   readonly excludeArchived?: boolean | undefined;
+  // Mounted-section filter (PLAN-108 §8): keep only projects carrying a
+  // `project_sections` row with this key, e.g. "ship-profile" for the fleet
+  // view. Applied in SQL, so pagination and `total` describe the FILTERED set.
+  readonly section?: string | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
   // When set (non-admin callers), restrict to projects this user is a member of.
@@ -401,6 +405,8 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
       sql`${projects.code} LIKE ${pattern} ESCAPE '\\'`,
     )!);
   }
+  if (params.section)
+    conditions.push(sectionMountedFilter(db, params.section));
   if (params.tagIds && params.tagIds.length > 0) {
     const taggedIds = await listResourceIdsByAnyTag(db, PROJECT_TAG_BINDING, params.tagIds);
     if (taggedIds.length === 0)
