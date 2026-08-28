@@ -379,7 +379,6 @@
     "deleteConfirmDescription": "This permanently removes the project and its data. This action cannot be undone."
   },
   "sections": {
-    "title": "Project sections",
     "description": "A project is a core record plus the sections it mounts. Mounting a section seeds its data and adds its tab; unmounting removes the tab.",
     "mountFailed": "Could not mount this section.",
     "unmountRefused": "\"{{name}}\" still holds data and cannot be removed. Delete its records first.",

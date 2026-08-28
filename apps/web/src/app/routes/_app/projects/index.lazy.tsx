@@ -73,9 +73,10 @@ export function ProjectsListPage() {
   const projectsQuery = useProjects({ ...projectsFilterToQuery(status), tagIds: selectedTagIds, q: debouncedSearch.trim() || undefined, section, page });
   // Count chips only need `meta.total`, so request a single row instead of a
   // full 20-row page (the `limit` is part of the query key, so these stay
-  // distinct from the main list query).
-  const activeCountQuery = useProjects({ status: "active", limit: 1 });
-  const archivedCountQuery = useProjects({ status: "archived", limit: 1 });
+  // distinct from the main list query). They carry `section` too, so the
+  // active/archived counts describe the list actually on screen.
+  const activeCountQuery = useProjects({ status: "active", section, limit: 1 });
+  const archivedCountQuery = useProjects({ status: "archived", section, limit: 1 });
   const tagsQuery = useTags();
   const createProject = useCreateProject();
 

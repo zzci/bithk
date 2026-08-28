@@ -379,7 +379,6 @@
     "deleteConfirmDescription": "此操作将永久删除该项目及其数据，且无法撤销。"
   },
   "sections": {
-    "title": "项目板块",
     "description": "项目由核心记录与其挂载的板块组成。挂载板块会初始化数据并新增对应标签页，卸载则移除该标签页。",
     "mountFailed": "无法挂载该板块。",
     "unmountRefused": "“{{name}}”仍有数据，无法移除。请先删除其记录。",
