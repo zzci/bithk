@@ -111,5 +111,29 @@
       { "user": "crew-larsson", "role": "member" },
       { "username": "auditor-okonkwo", "name": "Chidi Okonkwo", "title": "External Safety Auditor", "role": "member" }
     ]
+  },
+  {
+    "key": "harbour-workshop",
+    "name": "Harbour Workshop",
+    "description": "Shore-side workshop and test facility supporting the fleet. Not a vessel, but it owns and maintains its own equipment.",
+    "creator": "eng-lin",
+    "tags": ["shore", "workshop", "equipment"],
+    "cover": null,
+    "parent": null,
+    "sections": ["issues", "procurement", "files", "equipment"],
+    "members": [
+      { "user": "eng-voss", "role": "member" },
+      { "user": "eng-okafor", "role": "member" },
+      { "user": "sup-nguyen", "role": "member" }
+    ],
+    "equipment": [
+      { "name": "Deck Crane", "category": "deck", "manufacturer": "Besenzoni", "model": "GA-480", "serialNumber": "BSZ-GA480-0121", "installedAt": "2019-09-14", "note": "Load-tested annually; certificate filed under Workshop Records.", "location": "Quay bay 1", "status": "active" },
+      { "name": "Workshop Air Compressor", "category": "hvac", "manufacturer": "Condaria", "model": "CMP-75", "serialNumber": "CND-CMP75-3308", "installedAt": "2020-02-03", "location": "Machine hall", "status": "active" },
+      { "name": "Welding Plant", "category": "electrical", "manufacturer": "ABB", "model": "WP-400", "serialNumber": "ABB-WP400-7714", "installedAt": "2021-06-18", "location": "Machine hall", "status": "active" },
+      { "name": "Engine Test Bench", "category": "propulsion", "manufacturer": "Caterpillar", "model": "TB-C18", "serialNumber": "CAT-TB-C18-0042", "installedAt": "2018-11-27", "note": "Rated to 1200 kW; used for post-overhaul acceptance runs.", "location": "Test cell", "status": "active" },
+      { "name": "Standby Generator", "category": "electrical", "manufacturer": "Kohler", "model": "40EKD", "serialNumber": "KOH-40EKD-9931", "installedAt": "2018-11-30", "location": "Plant room", "status": "active" },
+      { "name": "Fire Suppression Panel", "category": "safety", "manufacturer": "SafeLine", "model": "FS-200", "location": "Entrance lobby", "status": "active" },
+      { "name": "Navigation Bench Test Rig", "category": "navigation", "manufacturer": "Garmin", "model": "BT-1243", "note": "Superseded by the mobile rig; retained for legacy units.", "location": "Electronics room", "status": "retired" }
+    ]
   }
 ]
