@@ -1,10 +1,11 @@
-import type { AppDatabase } from "@/db";
+import type { AppDatabase, AppTransaction } from "@/db";
 import type { AddReferenceInput } from "@/modules/issue/references.service";
 import type { ResourceTagBinding } from "@/modules/tag/tag.service";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { issueReferences } from "@/modules/issue/references.schema";
 import { buildReferenceRows } from "@/modules/issue/references.service";
 import { issueDetails } from "@/modules/issue/schema";
+import { softDeleteItemsTx } from "@/modules/item/item.service";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { getMemberCapabilities, resolveAssignableMember } from "@/modules/project/project.service";
@@ -629,4 +630,18 @@ export async function resolveIssueProjectId(db: AppDatabase, shortId: string): P
 export async function hasProjectIssues(db: AppDatabase, projectId: string): Promise<boolean> {
   const row = await db.select({ itemId: issueDetails.itemId }).from(issueDetails).where(eq(issueDetails.projectId, projectId)).get();
   return row !== undefined;
+}
+
+/**
+ * The `issues` section's cascade: soft-delete every issue of the project inside
+ * the transaction that soft-deletes the project itself (ADR-008). The
+ * `issue_details` links stay — only the base items are stamped, mirroring
+ * `softDeleteItem`. Synchronous, so its writes land before COMMIT.
+ */
+export function cascadeDeleteProjectIssuesTx(tx: AppTransaction, projectId: string, now: string): void {
+  const rows = tx.select({ itemId: issueDetails.itemId })
+    .from(issueDetails)
+    .where(eq(issueDetails.projectId, projectId))
+    .all();
+  softDeleteItemsTx(tx, rows.map(r => r.itemId), now);
 }

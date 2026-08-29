@@ -1,10 +1,11 @@
 import type { ProcurementPriority, ProcurementStatus } from "./schema";
-import type { AppDatabase } from "@/db";
+import type { AppDatabase, AppTransaction } from "@/db";
 import type { ResourceTagBinding } from "@/modules/tag/tag.service";
 import type { Logger } from "@/shared/lib/logger";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { audit } from "@/modules/audit/audit.service";
 import { contacts } from "@/modules/contact/schema";
+import { softDeleteItemsTx } from "@/modules/item/item.service";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { resolveAssignableMember } from "@/modules/project/project.service";
@@ -499,4 +500,19 @@ export async function listByProject(
 export async function hasProjectProcurements(db: AppDatabase, projectId: string): Promise<boolean> {
   const row = await db.select({ itemId: procurementDetails.itemId }).from(procurementDetails).where(eq(procurementDetails.projectId, projectId)).get();
   return row !== undefined;
+}
+
+/**
+ * The `procurement` section's cascade: soft-delete every procurement of the
+ * project inside the transaction that soft-deletes the project itself
+ * (ADR-008). The `procurement_details` links and the project's categories stay
+ * — only the base items are stamped, mirroring `softDeleteItem`. Synchronous,
+ * so its writes land before COMMIT.
+ */
+export function cascadeDeleteProjectProcurementsTx(tx: AppTransaction, projectId: string, now: string): void {
+  const rows = tx.select({ itemId: procurementDetails.itemId })
+    .from(procurementDetails)
+    .where(eq(procurementDetails.projectId, projectId))
+    .all();
+  softDeleteItemsTx(tx, rows.map(r => r.itemId), now);
 }

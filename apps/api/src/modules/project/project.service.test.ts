@@ -36,6 +36,12 @@ import {
   updateProject,
 } from "./project.service";
 import { projectRoles } from "./schema";
+// Side-effect imports: the soft-delete cascade runs through each mounted
+// section's `cascadeDelete` hook, and a section registers itself from its own
+// barrel (ADR-009). Without these the project's issues / procurements would
+// have no hook to cascade through (REFACTOR-040).
+import "@/modules/issue";
+import "@/modules/procurement";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 

@@ -135,6 +135,32 @@ export async function unmountSection(db: AppDatabase, projectId: string, key: st
     .run();
 }
 
+/**
+ * Run the `cascadeDelete` hook of every section mounted on the project, in tab
+ * order, inside the caller's transaction — the project soft-delete's cascade
+ * (ADR-008). A section that declares no hook is simply skipped.
+ *
+ * Synchronous for the same reason {@link runProvision} is, and rejects a hook
+ * that returns a promise for the same reason: its writes would land after
+ * COMMIT, leaving the children live under a deleted project.
+ */
+export function cascadeDeleteSections(tx: AppTransaction, projectId: string, now: string): void {
+  const rows = tx.select({ key: projectSections.key })
+    .from(projectSections)
+    .where(eq(projectSections.projectId, projectId))
+    .orderBy(asc(projectSections.sortOrder))
+    .all();
+
+  for (const { key } of rows) {
+    const cascadeDelete = getProjectSection(key)?.cascadeDelete;
+    if (!cascadeDelete)
+      continue;
+    const pending: unknown = cascadeDelete(tx, projectId, now);
+    if (pending instanceof Promise)
+      throw new Error(`Project section '${key}' cascaded asynchronously; cascadeDelete hooks must write synchronously inside the transaction`);
+  }
+}
+
 /** A project's mounted section keys, in tab order. */
 export async function listSections(db: AppDatabase, projectId: string): Promise<string[]> {
   const rows = await db.select({ key: projectSections.key })

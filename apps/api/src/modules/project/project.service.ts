@@ -9,10 +9,6 @@ import { runWrite } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { ACCEPT_IMAGES, fileInlineContentUrl, finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
-import { issueDetails } from "@/modules/issue/schema";
-import { items } from "@/modules/item/schema";
-import { relationTuples } from "@/modules/policy/schema";
-import { procurementDetails } from "@/modules/procurement/schema";
 import { settings } from "@/modules/settings/schema";
 import { getSetting } from "@/modules/settings/settings.service";
 import {
@@ -25,7 +21,7 @@ import { nanoid, ulid } from "@/shared/lib/id";
 import { parseCapabilities, resolveRole, seedDefaultRoles } from "./project.roles";
 import { projectMembers, projectRoles, projects } from "./schema";
 import { DEFAULT_PROJECT_PRESET, listRegisteredSections } from "./section.registry";
-import { listSections, loadSectionsForProjects, provisionSections, sectionMountedFilter } from "./section.service";
+import { cascadeDeleteSections, listSections, loadSectionsForProjects, provisionSections, sectionMountedFilter } from "./section.service";
 
 /** Settings key backing the admin "Project Defaults" cover picker. */
 export const PROJECT_DEFAULT_COVER_KEY = "project.defaults.coverReferenceId";
@@ -565,15 +561,19 @@ export async function updateProject(db: AppDatabase, shortId: string, input: Upd
 /**
  * Soft-delete a project and cascade the soft-delete to its child work items.
  *
- * In one transaction we stamp `deleted_at` on the project row and on every live
- * issue / procurement item belonging to it (resolved via the `*_details`
- * `project_id` link), tearing down each item's relation tuples — mirroring
+ * In one transaction we stamp `deleted_at` on the project row and then hand the
+ * children to each mounted section's `cascadeDelete` hook, which soft-deletes
+ * its own rows and tears down their relation tuples — mirroring
  * `softDeleteItem`. Without this, the children kept `deleted_at IS NULL` (still
  * "live") and accumulated unbounded under a project that no list/detail read can
  * reach (those resolve the parent first and filter `deleted_at IS NULL`). See
  * docs/decisions/008 for the cascade contract. Members / roles / categories /
  * tags are intentionally retained (the project row still exists); there is no
  * project restore endpoint, so the cascade is one-way by design.
+ *
+ * Which rows those are is the section's business, never this module's
+ * (PLAN-108 §3): a section that grows cascade-worthy tables registers the hook
+ * from its own barrel and nothing here changes.
  */
 export async function softDeleteProject(db: AppDatabase, shortId: string): Promise<void> {
   const project = await db.select().from(projects).where(eq(projects.shortId, shortId)).get();
@@ -597,21 +597,7 @@ export async function softDeleteProject(db: AppDatabase, shortId: string): Promi
       .where(eq(projects.parentId, project.id))
       .run();
 
-    const childItemIds = [
-      ...tx.select({ itemId: issueDetails.itemId }).from(issueDetails).where(eq(issueDetails.projectId, project.id)).all(),
-      ...tx.select({ itemId: procurementDetails.itemId }).from(procurementDetails).where(eq(procurementDetails.projectId, project.id)).all(),
-    ].map(r => r.itemId);
-
-    if (childItemIds.length === 0)
-      return;
-
-    tx.update(items)
-      .set({ deletedAt: now, updatedAt: now, version: sql`${items.version} + 1` })
-      .where(and(inArray(items.id, childItemIds), isNull(items.deletedAt)))
-      .run();
-    tx.delete(relationTuples)
-      .where(and(eq(relationTuples.namespace, "item"), inArray(relationTuples.objectId, childItemIds)))
-      .run();
+    cascadeDeleteSections(tx, project.id, now);
   });
 }
 

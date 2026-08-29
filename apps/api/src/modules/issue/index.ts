@@ -2,7 +2,7 @@ import { registerBackupContribution } from "@/modules/backup/registry";
 import { registerProjectSection } from "@/modules/project/section.registry";
 import { registerSearchSource } from "@/modules/search/search.registry";
 import { issueBackupContribution } from "./issue.backup";
-import { hasProjectIssues, searchIssues } from "./issue.service";
+import { cascadeDeleteProjectIssuesTx, hasProjectIssues, searchIssues } from "./issue.service";
 
 export { issueRoutes } from "./issue.routes";
 
@@ -18,6 +18,10 @@ registerProjectSection({
   key: "issues",
   capabilities: ["issue.view", "issue.comment", "issue.manage"],
   hasData: hasProjectIssues,
+  // Deleting the project soft-deletes its issues (ADR-008). This used to be
+  // hard-coded in `project.service.ts` against `issue_details`; owning it here
+  // is what keeps the project module free of domain imports (REFACTOR-040).
+  cascadeDelete: cascadeDeleteProjectIssuesTx,
 });
 
 registerSearchSource({

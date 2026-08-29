@@ -3,7 +3,7 @@ import { registerProjectSection } from "@/modules/project/section.registry";
 import { procurementBackupContribution } from "./procurement.backup";
 import { hasProjectCategories } from "./procurement.categories";
 import { seedProjectCategoriesTx } from "./procurement.global-categories";
-import { hasProjectProcurements } from "./procurement.service";
+import { cascadeDeleteProjectProcurementsTx, hasProjectProcurements } from "./procurement.service";
 
 export { procurementRoutes } from "./procurement.routes";
 
@@ -28,4 +28,9 @@ registerProjectSection({
   // they classify, so a project with only categories still holds data.
   hasData: async (db, projectId) =>
     await hasProjectProcurements(db, projectId) || await hasProjectCategories(db, projectId),
+  // Deleting the project soft-deletes its procurements (ADR-008); the
+  // categories are retained like the project's members and roles. This used to
+  // be hard-coded in `project.service.ts` against `procurement_details`
+  // (REFACTOR-040).
+  cascadeDelete: cascadeDeleteProjectProcurementsTx,
 });
