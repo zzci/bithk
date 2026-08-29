@@ -39,6 +39,12 @@ import { activeProjectTab, PROJECT_TAB_TO } from "./-project-tabs";
 const TAB_TRIGGER_CLASS
   = "px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground";
 
+// Tabs whose body owns its own scroll area and therefore needs a definite
+// height to fill the page with. Every other tab flows: its content sizes the
+// page and the page scrolls, so pinning the detail root to the viewport there
+// would push the layout's bottom padding out of the scrollable area.
+const FILL_TABS = new Set<ProjectDetailTab>(["files"]);
+
 export const Route = createLazyFileRoute("/_app/projects/$projectId")({
   component: ProjectDetailLayout,
 });
@@ -81,6 +87,7 @@ function ProjectDetailLayout() {
   // The active tab is derived from the path (one route per tab) so back/forward
   // and detail close/back always resolve to the correct tab.
   const tab = activeProjectTab(pathname, projectId);
+  const fills = FILL_TABS.has(tab);
   const goToTab = (value: ProjectDetailTab) => {
     void navigate({ to: PROJECT_TAB_TO[value], params: { projectId } });
   };
@@ -126,7 +133,12 @@ function ProjectDetailLayout() {
   };
 
   return (
-    <div className="space-y-5">
+    // Two shells, picked by the active tab. A fill tab turns the page into a
+    // flex column with a definite height (`<main>` is already one, so `flex-1
+    // min-h-0` carries that height down the chain); every other tab keeps the
+    // plain flow shell it has always had, so its content sizes the page and the
+    // page scrolls, margin collapsing and all.
+    <div className={fills ? "flex min-h-0 flex-1 flex-col gap-5" : "space-y-5"}>
       <Button
         variant="ghost"
         className="-ml-2 h-8 px-2 text-muted-foreground"
@@ -190,8 +202,9 @@ function ProjectDetailLayout() {
         </TabsList>
       </Tabs>
 
-      {/* The active tab route renders here. */}
-      <div className="pt-1">
+      {/* The active tab route renders here: a flex column whose body claims the
+          leftover height for a fill tab, the plain block box for the rest. */}
+      <div className={fills ? "flex min-h-0 flex-1 flex-col pt-1" : "pt-1"}>
         <Outlet />
       </div>
 

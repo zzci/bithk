@@ -29,8 +29,10 @@ function ProjectFilesRoute() {
   return (
     // -mx-4 cancels the drive surface's internal px-4 gutter so file rows align
     // flush with the other tabs' content (the layout main has ≥16px horizontal
-    // padding, so this never overflows).
-    <div className="-mx-4 h-[calc(100svh-18rem)] min-h-[24rem]">
+    // padding, so this never overflows). `flex-1 min-h-0` takes the height the
+    // detail layout has left over instead of guessing it from the viewport, and
+    // keeps the file list's own scroll area the only thing that scrolls.
+    <div className="-mx-4 min-h-0 flex-1">
       <FileBrowser
         ownerType="project"
         ownerId={project.id}

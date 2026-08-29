@@ -11,12 +11,13 @@ import { Route } from "./$projectId.lazy";
 // router hooks resolve to fixed values without a real router tree.
 const navigateMock = vi.fn();
 const mockParams: { current: Record<string, string> } = { current: { projectId: "p1" } };
+const mockPathname = { current: "/projects/p1" };
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (opts: unknown) => opts,
   useNavigate: () => navigateMock,
   useParams: () => mockParams.current,
   useSearch: () => ({ settings: false }),
-  useLocation: () => ({ pathname: "/projects/p1" }),
+  useLocation: () => ({ pathname: mockPathname.current }),
   Outlet: () => null,
 }));
 
@@ -74,6 +75,7 @@ beforeEach(() => {
   fetchMock.mockReset();
   navigateMock.mockReset();
   mockParams.current = { projectId: "p1" };
+  mockPathname.current = "/projects/p1";
   globalThis.fetch = fetchMock;
   // Not an app admin, so capability gating comes purely from the payload.
   useAuthStore.setState({ user: null });
@@ -187,6 +189,44 @@ describe("projectDetailLayout tab gating", () => {
     const back = await screen.findByRole("button", { name: "Back to projects" });
     fireEvent.click(back);
     expect(navigateMock).toHaveBeenCalledWith({ to: "/projects" });
+  });
+
+  it("keeps the flow shell for a tab that scrolls with the page (UI-032)", async () => {
+    // Every tab but files sizes the page from its own content, so its shell
+    // must stay the plain block box it has always been — a viewport-height
+    // flex column here would push the layout's bottom padding out of the
+    // scrollable area and clip margins that used to collapse through.
+    mockRoutes();
+    const { container } = renderWithProviders(<ProjectDetailLayout />);
+
+    await screen.findByRole("tab", { name: "Overview" });
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toBe("space-y-5");
+    expect((root.lastElementChild as HTMLElement).className).toBe("pt-1");
+  });
+
+  it("gives the files tab body the leftover height of the page (UI-032)", async () => {
+    // The files tab owns its own scroll area, so the shell becomes a flex
+    // column with a definite height and the body claims what is left of it
+    // (`flex-1 min-h-0` in the route) rather than subtracting a guessed header
+    // height from the viewport.
+    mockPathname.current = "/projects/p1/files";
+    mockRoutes({
+      detail: () => jsonResponse({
+        success: true,
+        data: project({ capabilities: ["issue.view", "files.view"] }),
+      }),
+    });
+    const { container } = renderWithProviders(<ProjectDetailLayout />);
+
+    await screen.findByRole("tab", { name: "Files" });
+    const root = container.firstElementChild as HTMLElement;
+    for (const cls of ["flex", "flex-col", "flex-1", "min-h-0"])
+      expect(root.className).toContain(cls);
+
+    const outletHost = root.lastElementChild as HTMLElement;
+    for (const cls of ["flex", "flex-col", "flex-1", "min-h-0", "pt-1"])
+      expect(outletHost.className).toContain(cls);
   });
 
   it("renders the not-found branch when the project query errors", async () => {
