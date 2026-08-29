@@ -19,6 +19,7 @@
  */
 /* eslint-disable no-console */
 import type { AppDatabase } from "@/db";
+import type { ProjectPreset } from "@/modules/project/section.registry";
 import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
@@ -51,6 +52,8 @@ import { createGlobalCategory } from "@/modules/procurement/procurement.global-c
 import { createProcurement } from "@/modules/procurement/procurement.service";
 import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject, listMembers, setProjectCover } from "@/modules/project/project.service";
+import { PROJECT_PRESETS } from "@/modules/project/section.registry";
+import { mountSection, unmountSection } from "@/modules/project/section.service";
 import { setSetting } from "@/modules/settings/settings.service";
 import { createShare } from "@/modules/share/share.service";
 import { createEquipment } from "@/modules/ship/ship.equipment.service";
@@ -114,11 +117,18 @@ interface EquipmentRec { name: string; category?: string; manufacturer?: string;
 // verbatim as the `ship-profile` slice of `sectionData` (the field names match
 // `shipProfileSectionDataSchema`, so no mapping layer is needed).
 interface ShipProfileRec { hullNumber: string; shipStatus?: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired"; model?: string | null; builder?: string | null; buildYear?: number | null; lengthOverall?: number | null; beam?: number | null; draft?: number | null; airDraft?: number | null; grossTonnage?: number | null; imoNumber?: string | null; mmsi?: string | null; callSign?: string | null; flagState?: string | null; registryPort?: string | null; ownerName?: string | null }
-interface ShipRec { key: string; name: string; code?: string; description?: string | null; tags?: string[]; cover?: string | null; profile: ShipProfileRec; equipment?: EquipmentRec[] }
+interface ShipRec { key: string; name: string; code?: string; description?: string | null; tags?: string[]; cover?: string | null; sections?: string[]; profile: ShipProfileRec; equipment?: EquipmentRec[] }
 interface MaintRec { key: string; name?: string; category?: string; checklist?: string; precautions?: string; project?: string; fromGlobal?: string }
 // `parent` is a ship key: the old "bound project" link is now a sub-project,
 // so the refit/survey project hangs under its vessel's project.
-interface ProjectRec { key: string; name: string; description?: string; creator: string; tags?: string[]; cover?: string | null; parent?: string | null; members?: { user?: string; username?: string; name?: string; title?: string; role: string }[] }
+//
+// `sections` (on both ProjectRec and ShipRec) declares the project's FULL
+// mounted set. Omitted means "whatever the preset mounts", which is why 30 of
+// the 31 seeded projects carry no such field; naming it lets a record express
+// any mount combination — the point of the section model — without a code
+// change here. A record that mounts a section outside its preset is expected to
+// carry data for it too (see `equipment` below), or the tab lands empty.
+interface ProjectRec { key: string; name: string; description?: string; creator: string; tags?: string[]; cover?: string | null; parent?: string | null; sections?: string[]; equipment?: EquipmentRec[]; members?: { user?: string; username?: string; name?: string; title?: string; role: string }[] }
 interface IssueTemplate { key: string; title: string; status: string; priority: string; tags?: string[]; description?: string; assign?: boolean; dueOffsetDays?: number | null; attachment?: string | null; comments?: { text: string; internal?: boolean }[] }
 interface ProcTemplate { key: string; itemName: string; status: string; supplier?: string; category?: string; tags?: string[]; quantity?: number; amount?: number; currency?: string; priority?: string; description?: string; dueOffsetDays?: number | null; attachment?: string | null }
 interface ContactCategoryRec { key: string; name: string; code?: string; description?: string }
@@ -155,6 +165,12 @@ const projectInfo = new Map<string, ProjectInfo>();
 
 const ADMIN_KEY = "admin";
 
+// Projects whose mounted set matches NEITHER preset, collected as they are
+// imported so the summary can name them. The composable model is only visible
+// in the data if some project actually deviates, and a number printed from a
+// real list is the only thing that notices when it stops doing so.
+const nonPresetMounts: { name: string; sections: readonly string[] }[] = [];
+
 // Starter bilingual equipment-category template. Seeded into the GLOBAL
 // template (`global_equipment_categories`); each new ship gets its own copy on
 // create. The `slug` is stored as the row `code` and matches the free-text
@@ -174,6 +190,46 @@ function uId(key: string): string {
   if (!id)
     throw new Error(`Unknown user key: ${key}`);
   return id;
+}
+
+/**
+ * Reconcile a just-created project's mounts against the payload's declared
+ * `sections`. Absent means "keep the preset", so the common path writes
+ * nothing at all; a declared list is the FULL mounted set, so a preset section
+ * the record leaves out is unmounted again.
+ *
+ * `unmountSection` refuses while a section still holds data — that guard is the
+ * point, so nothing here catches it: a payload asking to drop a populated
+ * section is a payload bug and the seed should stop on it.
+ */
+async function applySections(
+  db: AppDatabase,
+  projectId: string,
+  preset: ProjectPreset,
+  declared: readonly string[] | undefined,
+): Promise<readonly string[]> {
+  const presetKeys: readonly string[] = PROJECT_PRESETS[preset];
+  if (declared === undefined)
+    return presetKeys;
+
+  for (const key of declared) {
+    if (!presetKeys.includes(key))
+      await mountSection(db, projectId, key);
+  }
+  for (const key of presetKeys) {
+    if (!declared.includes(key))
+      await unmountSection(db, projectId, key);
+  }
+  return declared;
+}
+
+/** Record a project for the summary when its mounted set is neither preset. */
+function recordMountSet(name: string, sections: readonly string[]): void {
+  const isPreset = Object.values(PROJECT_PRESETS).some(
+    keys => keys.length === sections.length && keys.every(key => sections.includes(key)),
+  );
+  if (!isPreset)
+    nonPresetMounts.push({ name, sections });
 }
 
 // ─── Importers ────────────────────────────────────────────────────────────
@@ -316,6 +372,7 @@ async function importShipProjects(
     });
     shipProjectId.set(s.key, project.id);
     shipProjectShortId.set(s.key, project.shortId);
+    recordMountSet(s.name, await applySections(db, project.id, "ship", s.sections));
 
     // The `equipment` section's provision hook copied the global template into
     // this project's own categories; resolve each equipment record's category
@@ -390,8 +447,13 @@ async function importWorklists(db: AppDatabase): Promise<number> {
   return count;
 }
 
-async function importProjects(db: AppDatabase, config: Config): Promise<void> {
+async function importProjects(
+  db: AppDatabase,
+  config: Config,
+  manufacturerIdByName: ReadonlyMap<string, string>,
+): Promise<{ equipment: number }> {
   const recs = await readJson<ProjectRec[]>("projects");
+  let equipment = 0;
   for (const p of recs) {
     const creatorUserId = uId(p.creator);
     const parentShortId = p.parent ? shipProjectShortId.get(p.parent) : undefined;
@@ -407,6 +469,8 @@ async function importProjects(db: AppDatabase, config: Config): Promise<void> {
       // ship project is never itself a child.
       ...(parentShortId ? { parentId: parentShortId } : {}),
     });
+    const sections = await applySections(db, project.id, "general", p.sections);
+    recordMountSet(p.name, sections);
 
     // The creator is auto-added with the Owner (system) role; the "Reader"
     // preset is used for added members (read-only access by default).
@@ -443,6 +507,36 @@ async function importProjects(db: AppDatabase, config: Config): Promise<void> {
     if (categoryIds.size === 0)
       throw new Error(`Project ${p.key} copied no procurement categories; seed the global template before creating projects`);
 
+    // Equipment outside the ship preset. `mountSection` ran the same provision
+    // hook a ship create runs, so this project owns its own copy of the global
+    // category template and resolves category codes exactly like a ship does.
+    if (p.equipment && p.equipment.length > 0) {
+      if (!sections.includes("equipment"))
+        throw new Error(`Project ${p.key} carries equipment but does not mount the 'equipment' section`);
+      const categoryIdByCode = new Map<string, string>();
+      for (const cat of await listProjectEquipmentCategories(db, project.id)) {
+        if (cat.code)
+          categoryIdByCode.set(cat.code, cat.id);
+      }
+      if (categoryIdByCode.size === 0)
+        throw new Error(`Project ${p.key} copied no equipment categories; seed the global template before creating projects`);
+
+      for (const e of p.equipment) {
+        await createEquipment(db, project.id, {
+          name: e.name,
+          categoryId: (e.category ? categoryIdByCode.get(e.category) : undefined) ?? null,
+          manufacturerId: (e.manufacturer ? manufacturerIdByName.get(e.manufacturer) : undefined) ?? null,
+          model: e.model ?? null,
+          serialNumber: e.serialNumber ?? null,
+          installedAt: e.installedAt ?? null,
+          note: e.note ?? null,
+          location: e.location ?? null,
+          status: e.status ?? "active",
+        });
+        equipment++;
+      }
+    }
+
     if (p.cover) {
       const file = await assetFile(COVERS_DIR, p.cover);
       await setProjectCover(db, config, project.id, file, creatorUserId);
@@ -457,6 +551,7 @@ async function importProjects(db: AppDatabase, config: Config): Promise<void> {
       categoryIds,
     });
   }
+  return { equipment };
 }
 
 async function importIssues(db: AppDatabase, config: Config): Promise<{ issues: number; comments: number; attachments: number }> {
@@ -666,7 +761,21 @@ async function resolveDocItemId(db: AppDatabase, shortId: string): Promise<strin
   return row?.id;
 }
 
-async function importDrive(db: AppDatabase, config: Config): Promise<{ directories: number; entries: number; versions: number; shares: number }> {
+interface DriveImportResult {
+  readonly directories: number;
+  readonly entries: number;
+  readonly versions: number;
+  readonly shares: number;
+  /** Project-owned entries: the authored trees plus the per-project baseline. */
+  readonly projectEntries: number;
+  readonly projectsCovered: number;
+  readonly authoredEntries: number;
+  readonly authoredProjects: number;
+  readonly baselineEntries: number;
+  readonly baselineProjects: number;
+}
+
+async function importDrive(db: AppDatabase, config: Config): Promise<DriveImportResult> {
   const data = await readJson<DriveRec>("drive");
   const tdId = new Map<string, string>();
   const entryId = new Map<string, string>();
@@ -683,8 +792,30 @@ async function importDrive(db: AppDatabase, config: Config): Promise<{ directori
       await addTeamMember(db, dir.id, uId(td.createdBy), { userId: uId(m.user), role: m.role as never });
   }
 
+  // `drive_entries.owner_type` has three variants, so the owner key resolves
+  // against a different map per type. A "project" key may name a general
+  // project or a ship project — both are plain projects, and which file the key
+  // came from is not the payload author's problem.
+  const resolveOwnerId = (e: DriveRec["entries"][number]): string => {
+    if (e.ownerType === "team_directory")
+      return tdId.get(e.owner)!;
+    if (e.ownerType !== "project")
+      return uId(e.owner);
+    const projectId = projectInfo.get(e.owner)?.id ?? shipProjectId.get(e.owner);
+    if (!projectId)
+      throw new Error(`Drive entry ${e.key} references unknown project ${e.owner}`);
+    return projectId;
+  };
+
+  const authoredProjectIds = new Set<string>();
+  let authoredEntries = 0;
+
   for (const e of data.entries) {
-    const ownerId = e.ownerType === "team_directory" ? tdId.get(e.owner)! : uId(e.owner);
+    const ownerId = resolveOwnerId(e);
+    if (e.ownerType === "project") {
+      authoredProjectIds.add(ownerId);
+      authoredEntries++;
+    }
     const parentEntryId = e.parent ? entryId.get(e.parent) ?? null : null;
     const base = { ownerType: e.ownerType as never, ownerId, createdBy: uId(e.createdBy), parentEntryId };
 
@@ -711,6 +842,34 @@ async function importDrive(db: AppDatabase, config: Config): Promise<{ directori
       }
     }
   }
+  // A project's Files tab renders nothing but its project-owned entries, so a
+  // project with none shows an empty tab and no error anywhere. The payload
+  // authors real trees for a handful of showcase projects; every OTHER project
+  // gets this floor — one folder and one note. Deliberately minimal: it exists
+  // so no Files tab is empty, not to fake volume.
+  let baselineEntries = 0;
+  let baselineProjects = 0;
+  const baselineTargets = [
+    ...[...shipProjectId.values()].map(id => ({ id, ship: true, createdBy: uId(ADMIN_KEY) })),
+    ...[...projectInfo.values()].map(p => ({ id: p.id, ship: false, createdBy: p.creatorUserId })),
+  ];
+  for (const target of baselineTargets) {
+    if (authoredProjectIds.has(target.id))
+      continue;
+    const owner = { ownerType: "project" as const, ownerId: target.id, createdBy: target.createdBy };
+    const folder = await createDriveFolder(db, { ...owner, name: target.ship ? "Certificates" : "Documents" });
+    await createDriveTextFile(db, config, {
+      ...owner,
+      parentEntryId: folder.id,
+      name: target.ship ? "certificate-register.md" : "project-notes.md",
+      content: target.ship
+        ? "# Certificate Register\n\nStatutory and class certificates for this vessel, with their issue and expiry dates."
+        : "# Project Notes\n\nWorking notes, agreed decisions and shared references for this project.",
+    });
+    baselineEntries += 2;
+    baselineProjects++;
+  }
+
   // Drive shares exercise the richer share variants (drive_entry supports
   // direct + public_link with view/download/edit).
   let shares = 0;
@@ -729,7 +888,18 @@ async function importDrive(db: AppDatabase, config: Config): Promise<{ directori
     shares++;
   }
 
-  return { directories: data.teamDirectories.length, entries: data.entries.length, versions, shares };
+  return {
+    directories: data.teamDirectories.length,
+    entries: data.entries.length,
+    versions,
+    shares,
+    projectEntries: authoredEntries + baselineEntries,
+    projectsCovered: authoredProjectIds.size + baselineProjects,
+    authoredEntries,
+    authoredProjects: authoredProjectIds.size,
+    baselineEntries,
+    baselineProjects,
+  };
 }
 
 async function importCron(db: AppDatabase): Promise<{ jobs: number; logs: number }> {
@@ -914,7 +1084,7 @@ async function main(): Promise<void> {
 
     const ships = await importShipProjects(db, config, manufacturerIdByName);
     const worklistCount = await importWorklists(db);
-    await importProjects(db, config);
+    const projects = await importProjects(db, config, manufacturerIdByName);
     const issues = await importIssues(db, config);
     const procurements = await importProcurements(db, config);
     const issueRefs = await importIssueReferences(db);
@@ -940,12 +1110,14 @@ async function main(): Promise<void> {
     console.log(`  global proc cats: ${globalProcCategories}`);
     console.log(`  ships:        ${ships.ships} ship-preset projects (${ships.equipment} equipment)`);
     console.log(`  worklists:    ${worklistCount}`);
-    console.log(`  projects:     ${projectInfo.size} general-preset (${mounts.projects} total incl. ships)`);
+    console.log(`  projects:     ${projectInfo.size} general-preset (${mounts.projects} total incl. ships, ${projects.equipment} equipment outside the ship preset)`);
     console.log(`  issues:       ${issues.issues} (${issues.comments} comments, ${issues.attachments} attachments)`);
     console.log(`  issue refs:   ${issueRefs} (worklist references)`);
     console.log(`  procurements: ${procurements.procurements} (${procurements.attachments} attachments)`);
     console.log(`  documents:    ${documents.documents} (${documents.pins} pins, ${documents.shares} shares, ${documents.attachments} attachments)`);
     console.log(`  drive:        ${drive.directories} team dirs, ${drive.entries} entries, ${drive.versions} extra versions, ${drive.shares} shares`);
+    console.log(`  project drive: ${drive.projectEntries} project-owned entries over ${drive.projectsCovered} projects (${drive.authoredEntries} authored across ${drive.authoredProjects}, ${drive.baselineEntries} baseline across ${drive.baselineProjects})`);
+    console.log(`  non-preset mounts: ${nonPresetMounts.length} project(s)${nonPresetMounts.map(m => ` — ${m.name}: ${m.sections.join(", ")}`).join("")}`);
     console.log(`  cron:         ${cron.jobs} jobs, ${cron.logs} logs`);
     console.log(`  audit:        ${audits} events`);
     console.log(`  settings:     ${settingsCount}`);
