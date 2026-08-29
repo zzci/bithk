@@ -117,5 +117,140 @@
         { "text": "Cancelled — folded into the broader deck-equipment work order." }
       ]
     }
+  ],
+  "_shipComment": "Ship-preset projects draw from this set instead of `templates`: a vessel's own backlog is class-survey findings, defect reports, spares requisitions and drydock items, not the office backlog its refit sub-projects carry. The importer gives each ship a rotating 3-5 template window, so no two adjacent vessels look alike.",
+  "shipTemplates": [
+    {
+      "key": "s-class-survey",
+      "title": "Class survey finding: shell plating wastage aft",
+      "status": "review",
+      "priority": "high",
+      "tags": ["class-survey", "hull"],
+      "description": "Attending surveyor recorded plating diminution beyond allowance in way of frames 12-18. Prepare the repair proposal and thickness measurement report for class approval.",
+      "assign": true,
+      "dueOffsetDays": 45,
+      "attachment": "inspection-report.txt",
+      "comments": [
+        { "text": "Ultrasonic readings taken; three plates fall below the wastage limit." },
+        { "text": "Repair proposal drafted — holding for the surveyor's countersignature.", "internal": true }
+      ]
+    },
+    {
+      "key": "s-defect-genset",
+      "title": "Defect report: No.2 generator low insulation resistance",
+      "status": "working",
+      "priority": "urgent",
+      "tags": ["defect", "electrical"],
+      "description": "Megger reading on the No.2 generator stator dropped below 1 MΩ. Generator isolated and tagged out; drying-out in progress.",
+      "assign": true,
+      "dueOffsetDays": 10,
+      "comments": [
+        { "text": "Generator isolated and locked out. Space heaters running." },
+        { "text": "Reading recovering slowly — retest scheduled in 48 hours." }
+      ]
+    },
+    {
+      "key": "s-drydock-tailshaft",
+      "title": "Drydock item: tailshaft withdrawal and clearance check",
+      "status": "todo",
+      "priority": "high",
+      "tags": ["dry-dock", "propulsion"],
+      "description": "Withdraw the tailshaft at the next docking, record bearing clearances and renew the aft seal. Class attendance required for the clearance readings.",
+      "assign": true,
+      "dueOffsetDays": 180
+    },
+    {
+      "key": "s-spares-injector",
+      "title": "Spares requisition: main engine injector set",
+      "status": "todo",
+      "priority": "medium",
+      "tags": ["spares", "engine"],
+      "description": "Onboard injector spares are down to one set. Raise the requisition to restore the minimum stock level before the next running-hour service.",
+      "assign": false,
+      "dueOffsetDays": 60,
+      "comments": [
+        { "text": "Stock check confirms one spare set remaining." }
+      ]
+    },
+    {
+      "key": "s-psc-deficiency",
+      "title": "Port state control deficiency: emergency lighting",
+      "status": "done",
+      "priority": "high",
+      "tags": ["psc", "safety"],
+      "description": "PSC inspection raised a deficiency against emergency lighting levels in the engine room escape route. Fittings renewed and re-tested.",
+      "assign": true,
+      "dueOffsetDays": -25,
+      "comments": [
+        { "text": "Fittings renewed; lux readings now within requirement." },
+        { "text": "Deficiency cleared by the attending officer." }
+      ]
+    },
+    {
+      "key": "s-liferaft-service",
+      "title": "Liferaft annual service due",
+      "status": "review",
+      "priority": "medium",
+      "tags": ["safety", "class-survey"],
+      "description": "Both liferafts are due their annual service at an approved station. Verify the hydrostatic release expiry while the rafts are ashore.",
+      "assign": true,
+      "dueOffsetDays": 35,
+      "attachment": "maintenance-checklist.pdf",
+      "comments": [
+        { "text": "Rafts landed at the service station; certificates pending." }
+      ]
+    },
+    {
+      "key": "s-bilge-alarm",
+      "title": "Defect report: bilge high-level alarm intermittent",
+      "status": "working",
+      "priority": "medium",
+      "tags": ["defect", "safety"],
+      "description": "Engine room bilge high-level alarm fails to annunciate on test roughly one attempt in three. Float switch suspected.",
+      "assign": true,
+      "dueOffsetDays": 20,
+      "comments": [
+        { "text": "Float switch cleaned and re-tested; fault still intermittent. Replacement sensor requisitioned." }
+      ]
+    },
+    {
+      "key": "s-anchor-chain",
+      "title": "Anchor chain calibration and marking",
+      "status": "done",
+      "priority": "low",
+      "tags": ["deck", "dry-dock"],
+      "description": "Chain ranged on the dock bottom, links gauged and shackles re-marked. Two links replaced at the bitter end.",
+      "assign": true,
+      "dueOffsetDays": -60,
+      "comments": [
+        { "text": "Chain ranged and gauged; report filed with the docking record." }
+      ]
+    },
+    {
+      "key": "s-fuel-analysis",
+      "title": "Bunker fuel sample analysis out of spec",
+      "status": "todo",
+      "priority": "high",
+      "tags": ["defect", "engine"],
+      "description": "Laboratory analysis of the last bunker returned catalytic fines above the engine maker's limit. Do not consume until the purifier throughput is reduced and a second sample clears.",
+      "assign": false,
+      "dueOffsetDays": 5,
+      "comments": [
+        { "text": "Tank isolated from the service system pending the retest." }
+      ]
+    },
+    {
+      "key": "s-ballast-survey",
+      "title": "Ballast tank internal survey deferred",
+      "status": "cancel",
+      "priority": "low",
+      "tags": ["class-survey", "dry-dock"],
+      "description": "Internal survey of the aft peak was cancelled — class agreed to defer it into the next intermediate survey window.",
+      "assign": false,
+      "dueOffsetDays": null,
+      "comments": [
+        { "text": "Deferral confirmed in writing by class; folded into the intermediate survey scope." }
+      ]
+    }
   ]
 }

@@ -117,7 +117,7 @@ interface EquipmentRec { name: string; category?: string; manufacturer?: string;
 // verbatim as the `ship-profile` slice of `sectionData` (the field names match
 // `shipProfileSectionDataSchema`, so no mapping layer is needed).
 interface ShipProfileRec { hullNumber: string; shipStatus?: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired"; model?: string | null; builder?: string | null; buildYear?: number | null; lengthOverall?: number | null; beam?: number | null; draft?: number | null; airDraft?: number | null; grossTonnage?: number | null; imoNumber?: string | null; mmsi?: string | null; callSign?: string | null; flagState?: string | null; registryPort?: string | null; ownerName?: string | null }
-interface ShipRec { key: string; name: string; code?: string; description?: string | null; tags?: string[]; cover?: string | null; sections?: string[]; profile: ShipProfileRec; equipment?: EquipmentRec[] }
+interface ShipRec { key: string; name: string; code?: string; description?: string | null; tags?: string[]; cover?: string | null; sections?: string[]; members?: ProjectMemberRec[]; profile: ShipProfileRec; equipment?: EquipmentRec[] }
 interface MaintRec { key: string; name?: string; category?: string; checklist?: string; precautions?: string; project?: string; fromGlobal?: string }
 // `parent` is a ship key: the old "bound project" link is now a sub-project,
 // so the refit/survey project hangs under its vessel's project.
@@ -128,7 +128,11 @@ interface MaintRec { key: string; name?: string; category?: string; checklist?: 
 // any mount combination — the point of the section model — without a code
 // change here. A record that mounts a section outside its preset is expected to
 // carry data for it too (see `equipment` below), or the tab lands empty.
-interface ProjectRec { key: string; name: string; description?: string; creator: string; tags?: string[]; cover?: string | null; parent?: string | null; sections?: string[]; equipment?: EquipmentRec[]; members?: { user?: string; username?: string; name?: string; title?: string; role: string }[] }
+// A project member is either a real seeded `user` key or a virtual member
+// described inline. Shared by ProjectRec and ShipRec — a vessel takes crew
+// the same way a project takes staff.
+interface ProjectMemberRec { user?: string; username?: string; name?: string; title?: string; role: string }
+interface ProjectRec { key: string; name: string; description?: string; creator: string; tags?: string[]; cover?: string | null; parent?: string | null; sections?: string[]; equipment?: EquipmentRec[]; members?: ProjectMemberRec[] }
 interface IssueTemplate { key: string; title: string; status: string; priority: string; tags?: string[]; description?: string; assign?: boolean; dueOffsetDays?: number | null; attachment?: string | null; comments?: { text: string; internal?: boolean }[] }
 interface ProcTemplate { key: string; itemName: string; status: string; supplier?: string; category?: string; tags?: string[]; quantity?: number; amount?: number; currency?: string; priority?: string; description?: string; dueOffsetDays?: number | null; attachment?: string | null }
 interface ContactCategoryRec { key: string; name: string; code?: string; description?: string }
@@ -162,6 +166,12 @@ const seededWorklistRefs: { id: string; name: string }[] = [];
 const seededIssueItemIds: string[] = [];
 interface ProjectInfo { id: string; shortId: string; creatorUserId: string; memberRoleId: string; members: { memberId: string; userId: string }[]; categoryIds: Map<string, string> }
 const projectInfo = new Map<string, ProjectInfo>();
+// Ship projects carry the same record, in a SEPARATE map on purpose. Both are
+// keyed by their own payload's key, `projectInfo.size` is what the summary
+// prints as the general-preset count, and `importDrive` walks `shipProjectId`
+// and `projectInfo` as two distinct populations. Folding ships into
+// `projectInfo` would quietly corrupt all three.
+const shipProjectInfo = new Map<string, ProjectInfo>();
 
 const ADMIN_KEY = "admin";
 
@@ -230,6 +240,74 @@ function recordMountSet(name: string, sections: readonly string[]): void {
   );
   if (!isPreset)
     nonPresetMounts.push({ name, sections });
+}
+
+/**
+ * Build the `ProjectInfo` the issue and procurement importers consume: resolve
+ * the member role, add the record's members, and index the project's own copy
+ * of the procurement category template.
+ *
+ * Shared by the general and the ship importer so a vessel's backlog is built
+ * from exactly the same inputs a project's is. Only the construction is
+ * shared — the two populations stay in separate maps.
+ */
+async function buildProjectInfo(
+  db: AppDatabase,
+  key: string,
+  project: { id: string; shortId: string },
+  creatorUserId: string,
+  memberRecs: readonly ProjectMemberRec[],
+): Promise<ProjectInfo> {
+  // The creator is auto-added with the Owner (system) role; the "Reader"
+  // preset is used for added members (read-only access by default).
+  const roles = await listRoles(db, project.id);
+  const memberRole = roles.find(r => r.name === "Reader" && r.isSystem === 0);
+  if (!memberRole)
+    throw new Error(`No Reader role on project ${key}`);
+
+  // Members map to a real or virtual `users` row (userId is required). Virtual
+  // members are external operators with no login identity: a `users` row with
+  // is_virtual=true is minted from the record's username/name, and the member
+  // row records its job `title`. Only real members rotate as issue/comment
+  // authors (virtual users are hidden from those pickers), so virtual members
+  // are not pushed onto `members`.
+  const members: { memberId: string; userId: string }[] = [];
+  for (const m of memberRecs) {
+    if (m.user) {
+      const member = await addMember(db, project.id, { roleId: memberRole.id, userId: uId(m.user) });
+      members.push({ memberId: member.id, userId: uId(m.user) });
+    }
+    else {
+      const vUser = await createVirtualUser(db, { username: m.username!, name: m.name! });
+      await addMember(db, project.id, { roleId: memberRole.id, userId: vUser!.id, title: m.title ?? null });
+    }
+  }
+
+  // The `procurement` section's provision hook already copied the global
+  // category template into this project; index that copy by name so the
+  // procurement templates can resolve their category. Nothing is created
+  // here — a second `createCategory` would only duplicate the copy.
+  const categoryIds = new Map<string, string>();
+  for (const cat of await listCategories(db, project.id))
+    categoryIds.set(cat.name, cat.id);
+  if (categoryIds.size === 0)
+    throw new Error(`Project ${key} copied no procurement categories; seed the global template before creating projects`);
+
+  return { id: project.id, shortId: project.shortId, creatorUserId, memberRoleId: memberRole.id, members, categoryIds };
+}
+
+/**
+ * The slice of a per-ship template set a given vessel receives: a window of
+ * 3-5 entries whose size and start both advance with the fleet index.
+ *
+ * A rotation rather than the full set for every vessel. 22 identical backlogs
+ * read as filler rather than a fleet, and expanding all ten templates 22 times
+ * would more than double the seed's runtime for no extra coverage.
+ */
+function fleetWindow<T>(templates: readonly T[], shipIndex: number): T[] {
+  const size = 3 + (shipIndex % 3);
+  const start = (shipIndex * 3) % templates.length;
+  return Array.from({ length: size }, (_, i) => templates[(start + i) % templates.length]!);
 }
 
 // ─── Importers ────────────────────────────────────────────────────────────
@@ -374,6 +452,12 @@ async function importShipProjects(
     shipProjectShortId.set(s.key, project.shortId);
     recordMountSet(s.name, await applySections(db, project.id, "ship", s.sections));
 
+    // A vessel mounts `issues` and `procurement` like any project, so it needs
+    // the same record those importers consume — otherwise both tabs are mounted
+    // and permanently empty (DATA-002). Crew is optional in the payload; a
+    // vessel without it keeps only its creator and reads as thin, not broken.
+    shipProjectInfo.set(s.key, await buildProjectInfo(db, s.key, project, uId(ADMIN_KEY), s.members ?? []));
+
     // The `equipment` section's provision hook copied the global template into
     // this project's own categories; resolve each equipment record's category
     // against that copy (keyed by the `code` slug carried over from the
@@ -411,9 +495,12 @@ async function importShipProjects(
   return { ships: recs.length, equipment };
 }
 
-async function importWorklists(db: AppDatabase): Promise<number> {
+async function importWorklists(db: AppDatabase): Promise<{ global: number; project: number; ships: number }> {
   const recs = await readJson<{ global: MaintRec[]; project: MaintRec[] }>("worklists");
   let count = 0;
+  // Which vessels actually ended up holding a worklist — measured, not assumed,
+  // so the summary's fleet coverage cannot drift away from the rows written.
+  const covered = new Set<string>();
   for (const t of recs.global) {
     const wl = await createGlobalWorklist(db, {
       name: t.name ?? t.key,
@@ -442,9 +529,39 @@ async function importWorklists(db: AppDatabase): Promise<number> {
     });
     if (result.status === "ok")
       seededWorklistRefs.push({ id: result.worklist.id, name: result.worklist.name });
+    covered.add(t.project!);
     count++;
   }
-  return count;
+
+  // The payload names worklists for three vessels; the other 19 mount the
+  // `worklist` section and would show an empty tab. Every remaining ship
+  // therefore takes a rotating 1-3 entry copy of the global knowledge base
+  // through the same creator the UI's "copy from global" action uses.
+  //
+  // A rotation rather than 19 near-identical payload entries: it also means a
+  // vessel appended to ships.json arrives with a populated tab instead of
+  // reopening the gap DATA-002 was filed for.
+  const handWritten = new Set(recs.project.map(t => t.project));
+  let fleetIdx = 0;
+  for (const [key, projectId] of shipProjectId) {
+    if (handWritten.has(key))
+      continue;
+    for (let i = 0; i <= fleetIdx % 3; i++) {
+      const source = recs.global[(fleetIdx + i) % recs.global.length]!;
+      const globalId = globalWorklistId.get(source.key);
+      if (!globalId)
+        throw new Error(`Fleet worklist rotation references unknown global worklist ${source.key}`);
+      const result = await createProjectWorklist(db, projectId, { fromGlobalId: globalId });
+      if (result.status !== "ok")
+        throw new Error(`Fleet worklist copy failed for ship ${key} from ${source.key}: ${result.status}`);
+      seededWorklistRefs.push({ id: result.worklist.id, name: result.worklist.name });
+      covered.add(key);
+      count++;
+    }
+    fleetIdx++;
+  }
+
+  return { global: recs.global.length, project: count - recs.global.length, ships: covered.size };
 }
 
 async function importProjects(
@@ -472,40 +589,7 @@ async function importProjects(
     const sections = await applySections(db, project.id, "general", p.sections);
     recordMountSet(p.name, sections);
 
-    // The creator is auto-added with the Owner (system) role; the "Reader"
-    // preset is used for added members (read-only access by default).
-    const roles = await listRoles(db, project.id);
-    const memberRole = roles.find(r => r.name === "Reader" && r.isSystem === 0);
-    if (!memberRole)
-      throw new Error(`No Reader role on project ${p.key}`);
-
-    // Members map to a real or virtual `users` row (userId is required). Virtual
-    // members are external operators with no login identity: a `users` row with
-    // is_virtual=true is minted from the record's username/name, and the member
-    // row records its job `title`. Only real members rotate as issue/comment
-    // authors (virtual users are hidden from those pickers), so virtual members
-    // are not pushed onto `members`.
-    const members: { memberId: string; userId: string }[] = [];
-    for (const m of p.members ?? []) {
-      if (m.user) {
-        const member = await addMember(db, project.id, { roleId: memberRole.id, userId: uId(m.user) });
-        members.push({ memberId: member.id, userId: uId(m.user) });
-      }
-      else {
-        const vUser = await createVirtualUser(db, { username: m.username!, name: m.name! });
-        await addMember(db, project.id, { roleId: memberRole.id, userId: vUser!.id, title: m.title ?? null });
-      }
-    }
-
-    // The `procurement` section's provision hook already copied the global
-    // category template into this project; index that copy by name so the
-    // procurement templates can resolve their category. Nothing is created
-    // here — a second `createCategory` would only duplicate the copy.
-    const categoryIds = new Map<string, string>();
-    for (const cat of await listCategories(db, project.id))
-      categoryIds.set(cat.name, cat.id);
-    if (categoryIds.size === 0)
-      throw new Error(`Project ${p.key} copied no procurement categories; seed the global template before creating projects`);
+    const info = await buildProjectInfo(db, p.key, project, creatorUserId, p.members ?? []);
 
     // Equipment outside the ship preset. `mountSection` ran the same provision
     // hook a ship create runs, so this project owns its own copy of the global
@@ -542,26 +626,31 @@ async function importProjects(
       await setProjectCover(db, config, project.id, file, creatorUserId);
     }
 
-    projectInfo.set(p.key, {
-      id: project.id,
-      shortId: project.shortId,
-      creatorUserId,
-      memberRoleId: memberRole.id,
-      members,
-      categoryIds,
-    });
+    projectInfo.set(p.key, info);
   }
   return { equipment };
 }
 
-async function importIssues(db: AppDatabase, config: Config): Promise<{ issues: number; comments: number; attachments: number }> {
-  const { templates } = await readJson<{ templates: IssueTemplate[] }>("issue-templates");
+async function importIssues(db: AppDatabase, config: Config): Promise<{ issues: number; shipIssues: number; comments: number; attachments: number }> {
+  const { templates, shipTemplates } = await readJson<{ templates: IssueTemplate[]; shipTemplates: IssueTemplate[] }>("issue-templates");
   let issues = 0;
+  let shipIssues = 0;
   let comments = 0;
   let attachments = 0;
 
-  for (const proj of projectInfo.values()) {
-    for (const t of templates) {
+  // General projects take the whole template set; each vessel takes a rotating
+  // window of the ship set. Generals are expanded FIRST so the assignee
+  // rotation below (keyed off the running `issues` counter) is untouched by the
+  // fleet, and the general output stays exactly what it was before ships were
+  // covered at all.
+  const work: { proj: ProjectInfo; templates: readonly IssueTemplate[]; isShip: boolean }[] = [
+    ...[...projectInfo.values()].map(proj => ({ proj, templates: templates as readonly IssueTemplate[], isShip: false })),
+    ...[...shipProjectInfo.values()].map((proj, i) => ({ proj, templates: fleetWindow(shipTemplates, i), isShip: true })),
+  ];
+
+  for (const unit of work) {
+    const proj = unit.proj;
+    for (const t of unit.templates) {
       const assignedMember = t.assign && proj.members.length > 0 ? proj.members[issues % proj.members.length]! : null;
       const dueDate = t.dueOffsetDays != null ? dayOffset(t.dueOffsetDays) : undefined;
 
@@ -577,6 +666,8 @@ async function importIssues(db: AppDatabase, config: Config): Promise<{ issues: 
         ...(dueDate ? { dueDate } : {}),
       });
       issues++;
+      if (unit.isShip)
+        shipIssues++;
 
       const item = await resolveIssueItem(db, issue.id);
       if (!item)
@@ -614,18 +705,27 @@ async function importIssues(db: AppDatabase, config: Config): Promise<{ issues: 
       }
     }
   }
-  return { issues, comments, attachments };
+  return { issues, shipIssues, comments, attachments };
 }
 
-async function importProcurements(db: AppDatabase, config: Config): Promise<{ procurements: number; attachments: number }> {
-  const { templates } = await readJson<{ templates: ProcTemplate[] }>("procurement-templates");
+async function importProcurements(db: AppDatabase, config: Config): Promise<{ procurements: number; shipProcurements: number; attachments: number }> {
+  const { templates, shipTemplates } = await readJson<{ templates: ProcTemplate[]; shipTemplates: ProcTemplate[] }>("procurement-templates");
   let procurements = 0;
+  let shipProcurements = 0;
   let attachments = 0;
 
-  for (const proj of projectInfo.values()) {
+  // Same split as `importIssues`: whole set for general projects, a rotating
+  // window of the ship set per vessel.
+  const work: { proj: ProjectInfo; templates: readonly ProcTemplate[]; isShip: boolean }[] = [
+    ...[...projectInfo.values()].map(proj => ({ proj, templates: templates as readonly ProcTemplate[], isShip: false })),
+    ...[...shipProjectInfo.values()].map((proj, i) => ({ proj, templates: fleetWindow(shipTemplates, i), isShip: true })),
+  ];
+
+  for (const unit of work) {
+    const proj = unit.proj;
     const assignable = (await listMembers(db, proj.id)).filter(m => m.userId);
     let idx = 0;
-    for (const t of templates) {
+    for (const t of unit.templates) {
       const categoryId = (t.category && proj.categoryIds.get(t.category))
         ?? (proj.categoryIds.size > 0 ? [...proj.categoryIds.values()][idx % proj.categoryIds.size] : undefined);
       const supplierId = t.supplier ? contactId.get(t.supplier) : undefined;
@@ -649,6 +749,8 @@ async function importProcurements(db: AppDatabase, config: Config): Promise<{ pr
         ...(dueDate ? { dueDate } : {}),
       });
       procurements++;
+      if (unit.isShip)
+        shipProcurements++;
 
       if (t.attachment) {
         const file = await assetFile(ATTACH_DIR, t.attachment);
@@ -663,7 +765,7 @@ async function importProcurements(db: AppDatabase, config: Config): Promise<{ pr
       idx++;
     }
   }
-  return { procurements, attachments };
+  return { procurements, shipProcurements, attachments };
 }
 
 /**
@@ -1083,7 +1185,7 @@ async function main(): Promise<void> {
     const manufacturerIdByName = await importEquipmentManufacturers(db);
 
     const ships = await importShipProjects(db, config, manufacturerIdByName);
-    const worklistCount = await importWorklists(db);
+    const worklists = await importWorklists(db);
     const projects = await importProjects(db, config, manufacturerIdByName);
     const issues = await importIssues(db, config);
     const procurements = await importProcurements(db, config);
@@ -1109,11 +1211,11 @@ async function main(): Promise<void> {
     console.log(`  equip mfrs:   ${manufacturerIdByName.size}`);
     console.log(`  global proc cats: ${globalProcCategories}`);
     console.log(`  ships:        ${ships.ships} ship-preset projects (${ships.equipment} equipment)`);
-    console.log(`  worklists:    ${worklistCount}`);
+    console.log(`  worklists:    ${worklists.global + worklists.project} (${worklists.global} global, ${worklists.project} project-level across ${worklists.ships} ships)`);
     console.log(`  projects:     ${projectInfo.size} general-preset (${mounts.projects} total incl. ships, ${projects.equipment} equipment outside the ship preset)`);
-    console.log(`  issues:       ${issues.issues} (${issues.comments} comments, ${issues.attachments} attachments)`);
+    console.log(`  issues:       ${issues.issues} (${issues.issues - issues.shipIssues} general, ${issues.shipIssues} ship; ${issues.comments} comments, ${issues.attachments} attachments)`);
     console.log(`  issue refs:   ${issueRefs} (worklist references)`);
-    console.log(`  procurements: ${procurements.procurements} (${procurements.attachments} attachments)`);
+    console.log(`  procurements: ${procurements.procurements} (${procurements.procurements - procurements.shipProcurements} general, ${procurements.shipProcurements} ship; ${procurements.attachments} attachments)`);
     console.log(`  documents:    ${documents.documents} (${documents.pins} pins, ${documents.shares} shares, ${documents.attachments} attachments)`);
     console.log(`  drive:        ${drive.directories} team dirs, ${drive.entries} entries, ${drive.versions} extra versions, ${drive.shares} shares`);
     console.log(`  project drive: ${drive.projectEntries} project-owned entries over ${drive.projectsCovered} projects (${drive.authoredEntries} authored across ${drive.authoredProjects}, ${drive.baselineEntries} baseline across ${drive.baselineProjects})`);
