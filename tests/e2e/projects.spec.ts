@@ -5,9 +5,9 @@ import { projectsFixtureResponse } from "../fixtures/projects";
 
 test.use({
   baseURL: process.env.PROJECTS_BASE_URL ?? "http://bit.localhost:1355",
-  launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
-    ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
-    : undefined,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+    ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } }
+    : {}),
 });
 
 const user = {

@@ -1,0 +1,14 @@
+{
+  // `tests/` needs its own program: the Playwright specs and the fixtures
+  // import the web app data layer, which is browser-targeted (DOM lib,
+  // `import.meta.env` from vite/client, the `@/*` alias). The root config
+  // deliberately keeps those out of `scripts/`, which is Bun-only.
+  "extends": "@app/tsconfig/react.json",
+  "compilerOptions": {
+    "types": ["bun"],
+    "paths": {
+      "@/*": ["../apps/web/src/*"]
+    }
+  },
+  "include": ["**/*.ts", "../apps/web/src/vite-env.d.ts"]
+}

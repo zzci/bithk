@@ -1,3 +1,8 @@
 {
-  "extends": "@app/tsconfig/base.json"
+  "extends": "@app/tsconfig/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["bun"]
+  },
+  "include": ["eslint.config.ts", "scripts/**/*.ts"]
 }

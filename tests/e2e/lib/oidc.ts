@@ -130,7 +130,9 @@ export async function loginAs(email: string, password: string): Promise<ApiClien
       }
       return client;
     }
-    const url = location.startsWith("http") ? location : new URL(location, DEX_BASE).toString();
+    // Annotated: without it `url` -> `next` -> `nextLoc` -> `location` closes an
+    // inference cycle over the loop back-edge and every hop degrades to `any`.
+    const url: string = location.startsWith("http") ? location : new URL(location, DEX_BASE).toString();
     const next = await fetch(url, {
       method: "GET",
       redirect: "manual",

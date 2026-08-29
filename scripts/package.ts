@@ -50,7 +50,7 @@ function defaultAssetSuffix(): string {
   return `${os}-${arch}`;
 }
 
-async function run(cmd: readonly string[], cwd = ROOT): Promise<void> {
+async function run(cmd: string[], cwd = ROOT): Promise<void> {
   console.log(`[package] ${cmd.join(" ")}`);
   const child = Bun.spawn(cmd, { cwd, stdio: ["inherit", "inherit", "inherit"] });
   const code = await child.exited;
@@ -58,7 +58,7 @@ async function run(cmd: readonly string[], cwd = ROOT): Promise<void> {
     throw new Error(`command failed (${code}): ${cmd.join(" ")}`);
 }
 
-function tryRun(cmd: readonly string[]): string {
+function tryRun(cmd: string[]): string {
   try {
     const result = Bun.spawnSync(cmd, { cwd: ROOT });
     return result.stdout.toString().trim();
