@@ -1,4 +1,4 @@
-import type { Headers } from "tar-stream";
+import type { Header } from "tar-stream";
 import type { BackupManifestV2, ManifestColumn, ManifestTable } from "./archive.service";
 import type { ImportJob } from "./import.service";
 import type { Config } from "@/config";
@@ -61,7 +61,7 @@ afterEach(() => {
 interface TestEntry {
   readonly name: string;
   readonly data?: string | Uint8Array;
-  readonly type?: Headers["type"];
+  readonly type?: Header["type"];
   readonly linkname?: string;
 }
 
@@ -76,7 +76,7 @@ async function archiveFile(entries: TestEntry[]): Promise<File> {
   })();
   for (const entry of entries) {
     if (entry.type && entry.type !== "file") {
-      pack.entry({ name: entry.name, type: entry.type, linkname: entry.linkname, size: 0 }, "");
+      pack.entry({ name: entry.name, type: entry.type, linkname: entry.linkname ?? "", size: 0 }, "");
     }
     else {
       pack.entry({ name: entry.name }, Buffer.from(entry.data ?? ""));

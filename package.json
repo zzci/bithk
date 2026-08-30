@@ -19,7 +19,7 @@
   ],
   "catalog": {
     "typescript": "6.0.3",
-    "vitest": "4.1.8"
+    "vitest": "4.1.11"
   },
   "scripts": {
     "dev": "bun --env-file=.env run --filter '@app/*' dev",
@@ -59,20 +59,20 @@
     "@playwright/test": "1.62.1",
     "@types/bun": "1.4.0",
     "consola": "3.4.2",
-    "eslint": "10.8.1",
+    "eslint": "10.9.1",
     "eslint-plugin-react-hooks": "7.1.1",
-    "eslint-plugin-react-refresh": "0.5.4",
+    "eslint-plugin-react-refresh": "0.5.5",
     "openapi-typescript": "7.13.0",
     "otpauth": "9.5.1",
     "typescript": "catalog:"
   },
   "overrides": {
-    "esbuild": "^0.25.0",
-    "@babel/core": "^7.29.6",
-    "dompurify": "^3.4.13",
-    "hono": "^4.13.3",
-    "js-yaml": "^4.3.1",
-    "protobufjs": "^7.6.5",
+    "esbuild": "^0.25.12",
+    "@babel/core": "^7.29.7",
+    "dompurify": "^3.4.14",
+    "hono": "^4.13.5",
+    "js-yaml": "^4.3.2",
+    "protobufjs": "^7.6.6",
     "undici": "^7.29.0",
     "vite": "^8.2.2",
     "@univerjs/core": {

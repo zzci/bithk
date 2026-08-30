@@ -91,7 +91,7 @@ async function readArchiveStream(gz: ReadableStream<Uint8Array>): Promise<Archiv
   const entries: ArchiveEntry[] = [];
   ex.on("entry", (header, stream, next) => {
     const chunks: Buffer[] = [];
-    stream.on("data", (d: Buffer) => chunks.push(d));
+    stream.on("data", (d: unknown) => chunks.push(d as Buffer));
     stream.on("end", () => {
       entries.push({ name: header.name, data: Buffer.concat(chunks) });
       next();
@@ -110,7 +110,7 @@ async function readArchiveStream(gz: ReadableStream<Uint8Array>): Promise<Archiv
     if (!ex.write(Buffer.from(chunk)))
       await once(ex, "drain");
   }
-  ex.end();
+  ex.end(undefined);
   await finished;
   return entries;
 }
