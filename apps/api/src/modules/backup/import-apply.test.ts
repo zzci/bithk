@@ -1,4 +1,4 @@
-import type { Headers } from "tar-stream";
+import type { Header } from "tar-stream";
 import type { BackupManifestV2, ManifestColumn, ManifestTable } from "./archive.service";
 import type { ImportApplyActor } from "./import-apply";
 import type { ImportJob } from "./import.service";
@@ -67,7 +67,7 @@ afterEach(() => {
 interface TestEntry {
   readonly name: string;
   readonly data?: string | Uint8Array;
-  readonly type?: Headers["type"];
+  readonly type?: Header["type"];
 }
 
 async function packTarGz(entries: TestEntry[]): Promise<Uint8Array<ArrayBuffer>> {
