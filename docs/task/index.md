@@ -217,4 +217,5 @@
 | [REFACTOR-040](REFACTOR-040.md) | Project soft-delete cascade reaches into domain schemas | [PLAN-108](../plan/PLAN-108.md) | Completed | 2026-08-28 |
 | [DATA-002](DATA-002.md) | Reseed for the section model: every mounted surface needs data | - | Completed | 2026-08-29 |
 | [TEST-002](TEST-002.md) | Stale and unreachable end-to-end specs | - | Proposed | 2026-08-29 |
+| [CHORE-009](CHORE-009.md) | Dependency refresh: 14 minor bumps and 5 majors | - | In Progress | 2026-08-29 |
 | [CHORE-008](CHORE-008.md) | Bring the repository root under typecheck | - | Completed | 2026-08-28 |
