@@ -214,6 +214,7 @@
 | [CHORE-006](CHORE-006.md) | Sweep the remaining non-English comments | - | Completed | 2026-08-28 |
 | [CHORE-007](CHORE-007.md) | Bring apps/api/scripts under typecheck | - | Completed | 2026-08-28 |
 | [UI-032](UI-032.md) | Project Files tab sizes itself with a magic number instead of filling the tab area | - | Completed | 2026-08-28 |
-| [REFACTOR-040](REFACTOR-040.md) | Project soft-delete cascade reaches into domain schemas | [PLAN-108](../plan/PLAN-108.md) | In Progress | 2026-08-28 |
-| [DATA-002](DATA-002.md) | Reseed for the section model: every mounted surface needs data | - | In Progress | 2026-08-29 |
-| [CHORE-008](CHORE-008.md) | Bring the repository root under typecheck | - | In Progress | 2026-08-28 |
+| [REFACTOR-040](REFACTOR-040.md) | Project soft-delete cascade reaches into domain schemas | [PLAN-108](../plan/PLAN-108.md) | Completed | 2026-08-28 |
+| [DATA-002](DATA-002.md) | Reseed for the section model: every mounted surface needs data | - | Completed | 2026-08-29 |
+| [TEST-002](TEST-002.md) | Stale and unreachable end-to-end specs | - | Proposed | 2026-08-29 |
+| [CHORE-008](CHORE-008.md) | Bring the repository root under typecheck | - | Completed | 2026-08-28 |

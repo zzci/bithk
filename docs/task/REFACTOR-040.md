@@ -1,6 +1,6 @@
 # REFACTOR-040 - Project soft-delete cascade reaches into domain schemas
 
-- Status: In Progress
+- Status: Completed (2026-08-29)
 - Plan: [PLAN-108](../plan/PLAN-108.md) (invariant this restores)
 - Created: 2026-08-28
 

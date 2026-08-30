@@ -1,6 +1,6 @@
 # CHORE-008 - Bring the repository root under typecheck
 
-- Status: In Progress
+- Status: Completed (2026-08-29)
 - Plan: -
 - Depends on: [CHORE-007](CHORE-007.md) (the audit that found this gap)
 - Created: 2026-08-28
