@@ -8,7 +8,7 @@ const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
 
 test.use({
   baseURL: process.env.SMOKE_BASE_URL ?? "http://bit.localhost:1355",
-  launchOptions: chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : undefined,
+  ...(chromiumExecutablePath ? { launchOptions: { executablePath: chromiumExecutablePath } } : {}),
 });
 
 const user = {

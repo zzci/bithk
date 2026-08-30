@@ -22,16 +22,18 @@ export default defineConfig({
       name: "chromium-posix-locale",
       use: {
         ...devices["Desktop Chrome"],
-        launchOptions: chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : undefined,
+        ...(chromiumExecutablePath ? { launchOptions: { executablePath: chromiumExecutablePath } } : {}),
       },
     },
   ],
-  webServer: process.env.SMOKE_SKIP_WEBSERVER === "1"
-    ? undefined
+  ...(process.env.SMOKE_SKIP_WEBSERVER === "1"
+    ? {}
     : {
-        command: "bun run dev",
-        url: baseURL,
-        timeout: 120_000,
-        reuseExistingServer: !process.env.CI,
-      },
+        webServer: {
+          command: "bun run dev",
+          url: baseURL,
+          timeout: 120_000,
+          reuseExistingServer: !process.env.CI,
+        },
+      }),
 });
