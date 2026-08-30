@@ -364,7 +364,7 @@ function packEntryFromStream(
           if (!entry.write(buf))
             await once(entry, "drain");
         }
-        entry.end();
+        entry.end(undefined);
       }
       catch (err) {
         entry.destroy(err instanceof Error ? err : new Error(String(err)));
@@ -393,7 +393,7 @@ async function packGzippedTar(
       // WritableStream<BufferSource>, which pipeThrough's Uint8Array
       // generic rejects; the runtime accepts Uint8Array chunks fine.
       const gzip = new CompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>;
-      const gzipped = nodeReadableToWeb(pack).pipeThrough(gzip);
+      const gzipped = nodeReadableToWeb(pack as AsyncIterable<Uint8Array>).pipeThrough(gzip);
       for await (const chunk of gzipped)
         sink.write(chunk);
     }
