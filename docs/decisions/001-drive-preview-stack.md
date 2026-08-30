@@ -22,8 +22,8 @@ Added to `apps/web/package.json`:
 
 | Package | Version | Purpose |
 | --- | --- | --- |
-| `react-pdf` | `10.4.1` | Paged `<Document>`/`<Page>` PDF rendering |
-| `pdfjs-dist` | `5.4.296` | PDF engine + worker — **pinned to the exact version `react-pdf@10.4.1` bundles** |
+| `react-pdf` | `10.5.0` | Paged `<Document>`/`<Page>` PDF rendering |
+| `pdfjs-dist` | `5.4.296` | PDF engine + worker — **pinned to the exact version `react-pdf@10.5.0` bundles** |
 | `react-zoom-pan-pinch` | `4.0.3` | Image zoom / pan / rotate / reset |
 | `shiki` | `4.1.0` | Theme-synced syntax highlighting for code/markdown source |
 
@@ -34,7 +34,7 @@ async chunk is fetched when a user opens that kind of file.
 
 **`pdfjs-dist` pin rationale:** `react-pdf` couples tightly to a specific
 pdf.js API; a mismatched `pdfjs-dist` breaks the worker contract. The
-version is pinned to exactly what `react-pdf@10.4.1` expects and must be
+version is pinned to exactly what `react-pdf@10.5.0` expects and must be
 bumped together with `react-pdf`, never independently.
 
 ### (b) Custom full-bleed overlay modal instead of shadcn `Dialog`

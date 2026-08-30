@@ -69,6 +69,124 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Security
 
+- Dependency refresh (CHORE-009): 17 of the 19 packages `bun outdated` reported
+  were bumped and 2 were deferred with a recorded reason; nothing was dropped
+  silently. `bun outdated --filter '*'` on the finished branch reports exactly
+  the two deferrals and nothing else. osv-scanner on `bun.lock` still reports
+  "No issues found" across 1332 packages, so the CHORE-005 baseline of 0
+  findings holds.
+
+  **14 low-risk bumps, all applied** — `zod` 4.4.3 -> 4.5.4 and `tar-stream`
+  3.2.0 -> 3.2.1 (`apps/api`); `@tanstack/react-query` 5.101.4 -> 5.102.8,
+  `@tanstack/react-router` 1.170.31 -> 1.170.32 and `lucide-react`
+  1.33.0 -> 1.37.0 (`apps/web`); `@tanstack/router-plugin` 1.168.34 -> 1.168.35,
+  `@testing-library/react` 16.3.2 -> 16.3.3, `@testing-library/user-event`
+  14.6.5 -> 14.6.6, `@types/react-dom` 19.2.4 -> 19.2.5, `@vitejs/plugin-react`
+  6.1.0 -> 6.1.1 and `shadcn` 4.18.0 -> 4.19.0 (`apps/web` dev); `eslint`
+  10.8.1 -> 10.9.1 and `eslint-plugin-react-refresh` 0.5.4 -> 0.5.5 (root dev);
+  `vitest` 4.1.8 -> 4.1.11 (root catalog). Every target was verified against
+  the registry before pinning. Three carry more than a version pair:
+  `zod` 4.5.4 tightens a request-side contract (see *Changed* below);
+  `tar-stream` 3.2.1 is a types-only release whose bundled `index.d.ts` — built
+  on `streamx`, and now shadowing the `@types/tar-stream` 3.1.4 devDependency —
+  forced 8 files under `apps/api/src/modules/backup` (`Headers` -> `Header`, a
+  `?? ""` for `Pack.entry`'s `linkname`, `end(undefined)` for streamx's missing
+  zero-arg overload, and Buffer/Uint8Array casts where streamx types payloads
+  as `unknown`), all behaviour-preserving; the bump was kept rather than
+  reverted because tar-stream 3.x genuinely runs on streamx, so the bundled
+  types describe reality and staying on 3.2.0 would pin the repo to a version
+  with no maintained types. `lucide-react` crossed four minors with no icon
+  renamed or removed.
+
+  **5 majors — 3 bumped, 2 deferred.** `nanoid` 5.1.16 -> 6.0.1 (`@app/api`)
+  **bumped**: the nested override `"@univerjs/core": { "nanoid": "5.1.16" }` is
+  deliberately kept, because `@univerjs/core` exact-pins the advisory-carrying
+  5.1.11 and cannot take 6, and it cannot become a global `nanoid ^5` override
+  because `postcss` needs nanoid 3; the bump *removed* a lockfile entry (4
+  entries / 3 versions before, 3 / 3 after) as `@app/api` and the two
+  `@milkdown/*` consumers folded onto the hoisted `nanoid@6.0.1`, and no code
+  changed since `customAlphabet` is the only nanoid API used anywhere in the
+  repo. `jsdom` 29.1.1 -> 30.0.1 **bumped**, manifest and lockfile only — the
+  `apps/web/src/test/setup.ts` polyfills are all feature-guarded.
+  `@testing-library/jest-dom` 6.9.1 -> 7.0.1 **bumped**: v7 is a packaging
+  major (required `@testing-library/dom` peer, minimum Node 22), not a matcher
+  major, so no assertion was changed or weakened.
+  `pdfjs-dist` 5.4.296 -> 6.3.289 **deferred** — blocked by
+  [ADR-001](decisions/001-drive-preview-stack.md), which forbids moving
+  `pdfjs-dist` independently of `react-pdf`, and no react-pdf release bundles
+  pdfjs 6: all 156 published versions were swept and none declare 6.x, the
+  dist-tags hold only `latest: 10.5.0`, and `react-pdf@10.5.0` declares
+  `dependencies["pdfjs-dist"]` as the exact string `5.4.296` rather than a
+  range, so the pin cannot float and is current rather than drifted. Unblocked
+  by a stable react-pdf declaring `pdfjs-dist ^6.x`, at which point both move
+  together and the Vite `?url` worker import in `file-preview-dialog.tsx` must
+  be re-verified against the pdfjs 6 build layout; recheck at the ADR-001
+  review date 2026-11-22, or sooner if react-pdf publishes a major.
+  `typescript` 6.0.3 -> 7.0.2 (catalog-wide) **deferred** — no stable lint
+  stack admits TypeScript 7. The repo resolves
+  `@typescript-eslint/typescript-estree` 8.68.0, whose
+  `peerDependencies.typescript` is `>=4.8.4 <6.1.0`; sweeping that field across
+  every published typescript-eslint version yields only
+  `{>=4.8.4 <5.8.0, <5.9.0, <6.0.0, <6.1.0}`, so no release of any kind admits
+  7.x. The cap binds because `eslint.config.ts` sets `typescript: true`, routing
+  lint through `@typescript-eslint/parser` into `typescript-estree`, which loads
+  the typescript package directly, and `@antfu/eslint-config` 9.3.0 (the latest)
+  depends on `@typescript-eslint/*` `^8.66.0`. The bump was **not** forced — no
+  `--force`, no peer override, no disabling of type-aware linting — so the type
+  gate is unweakened. Unblocked by a stable typescript-eslint whose peer range
+  extends past `<6.1.0` (expected on the 9.x line tracking the TS 7 native
+  compiler API) *and* an `@antfu/eslint-config` release depending on it;
+  re-evaluate on the next dependency-refresh pass rather than on a date.
+
+  **8 security floor overrides — 6 raised, 2 unchanged.** `esbuild`
+  `^0.25.0` -> `^0.25.12`, `@babel/core` `^7.29.6` -> `^7.29.7`, `dompurify`
+  `^3.4.13` -> `^3.4.14`, `hono` `^4.13.3` -> `^4.13.5`, `js-yaml`
+  `^4.3.1` -> `^4.3.2` and `protobufjs` `^7.6.5` -> `^7.6.6`; `vite` stays
+  `^8.2.2` because that is already the absolute latest, and `undici` stays
+  `^7.29.0` (deferred, below). No floor crossed a major boundary and all eight
+  query clean at OSV for the pinned version. The six raises carry no resolution
+  risk — the lockfile diff is declaration-only, since every one of those
+  versions was already what the old caret resolved to; the floors had lagged
+  behind reality, and raising them stops a future install regressing below the
+  advisory fix versions. `hono` also got a consistency fix: `apps/api`'s `hono`
+  was raised 4.13.3 -> 4.13.5 to match the floor, correcting a pre-existing
+  mismatch where the lockfile already resolved 4.13.5.
+  `undici` **deferred because no single tree-wide floor satisfies its three
+  consumers** — `jsdom@30.0.1` wants `^8.9.0` while `shadcn@4.19.0` wants
+  `^7.27.2` and `@dotenvx/dotenvx@1.75.1` wants `^7.11.0`, so raising to 8.x
+  would only invert the mismatch onto the other two; 7.29.0 is itself the fix
+  version for GHSA-v3r7-h72x-cjcm (fixed in 6.28.0 / 7.29.0 / 8.9.0), the
+  advisory the override exists for, so nothing forces the crossing. Consequence
+  to note: jsdom 30 now resolves *below* its own declared range. That is latent
+  rather than breaking — all four undici symbols it imports
+  (`getGlobalDispatcher`, `WebSocket`, `DecoratorHandler`, `Dispatcher`) exist
+  in 7.29.0 and jsdom instantiates and parses fine — but it will surface on a
+  jsdom patch that touches the undici 8 API.
+
+  **Recommended follow-up, deliberately not done here.** (1) A nested
+  `"jsdom": { "undici": "^8.10.0" }` override would give jsdom its declared 8.x
+  while leaving shadcn and dotenvx on the 7.29.0 floor, using the same mechanism
+  as the `@univerjs/core` -> `nanoid` override; unlike the six floor raises it
+  would actually change the installed set by adding a second undici copy, so it
+  needs its own verification pass. (2) `@types/tar-stream` 3.1.4 is now inert,
+  since the bundled types always win; left in place rather than removed as a
+  drive-by. (3) Node engine floor drift — jsdom 30 requires
+  `^22.22.2 || ^24.15.0 || >=26.0.0` while root `engines.node` says `24.14.x`
+  and CI pins `NODE_VERSION` 22.13.0, both below the floor and already
+  inconsistent with each other; not a hazard today (the web suite runs under
+  Bun, nothing is engine-strict) but the manifests understate the requirement.
+  (4) The `esbuild` floor holds `vite@8.2.2` (`^0.27.0 || ^0.28.0`) and
+  `tsx@4.23.12` (`~0.28.0`) below their declared ranges because
+  `drizzle-kit@0.31.10` declares `^0.25.4` — the same class as the undici case,
+  but pre-existing rather than introduced here, and self-resolving once
+  drizzle-kit ships an esbuild 0.28 range.
+
+  Every subtask of the refresh passed a full `bun run check` at EXIT 0, read
+  back from a file rather than console output, and `bun run seed` passed EXIT 0
+  after the `zod` batch and the `nanoid` decision since both sit on paths seed
+  exercises and seed is not part of `check`. The pre-change baseline was also
+  EXIT 0, so every result is attributable.
+
 - Dependency catch-up (CHORE-005): applied the open dependabot runtime and
   tooling groups (hono 4.13, vite 8.2, react 19.2.8, eslint 10.8, tailwind
   4.3.3, ...) and the GitHub Actions bumps (checkout v7, cache v6, trufflehog
@@ -83,6 +201,19 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   1.3.14 cannot read.
 
 ### Changed
+
+- `zod` 4.5.4 (CHORE-009) tightens a request-side API contract:
+  `z.iso.datetime` now **requires** the seconds field, which 4.4.3 treated as
+  optional. The new behaviour is the RFC 3339-correct one. Two request inputs
+  are affected — `installedAt` in `ship.routes.ts` and `expiresAt` in
+  `share.routes.ts`. The SPA feeds both through `toISOString()`, which always
+  emits seconds, so there is no in-app breakage, but an external API client
+  (for example a PAT-authenticated one) sending a second-less timestamp is now
+  rejected. The bump also required regenerating
+  `skills/bithk/references/api-spec.json`; that diff is large but almost
+  entirely a representation change, with nullable unions now emitted as the
+  JSON Schema type-array form `["string","null"]` instead of `anyOf` —
+  equivalent under the OpenAPI 3.1.0 the document declares.
 
 - The project and ship cover thumbnails open an enlarged preview whose popup now
   shrink-wraps the picture (UI-031). The close control floats on the image's own
