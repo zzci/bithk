@@ -302,7 +302,7 @@ export async function walkTarGzEntries(
         await once(ex, "drain");
     }
     if (!entryError) {
-      ex.end();
+      ex.end(undefined);
       await finished;
     }
   }
