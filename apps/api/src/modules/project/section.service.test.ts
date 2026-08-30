@@ -17,6 +17,7 @@ import { projects, projectSections } from "./schema";
 import { requireSection } from "./section.middleware";
 import { listRegisteredSections, registerProjectSection, resetProjectSectionRegistry } from "./section.registry";
 import {
+  cascadeDeleteSections,
   hasSection,
   listSections,
   loadSectionsForProjects,
@@ -433,6 +434,40 @@ describe("unmountSection", () => {
     await unmountSection(db, project.id, "equipment");
 
     expect(await listSections(db, project.id)).toEqual(["issues", "procurement", "files"]);
+  });
+});
+
+describe("cascadeDeleteSections", () => {
+  test("runs the mounted sections' hooks in tab order and skips a section that declares none", async () => {
+    const seen: string[] = [];
+    registerProjectSection({ key: "issues", cascadeDelete: (_tx, projectId, now) => void seen.push(`issues:${projectId}:${now}`) });
+    // Mounted by the general preset, but declares no hook: simply skipped.
+    registerProjectSection({ key: "procurement", hasData: async () => false });
+    // Registered with a hook but NOT mounted on this project: never called.
+    registerProjectSection({ key: "equipment", cascadeDelete: () => void seen.push("equipment") });
+
+    const creator = await seedUser();
+    const project = await createProject(db, { name: "Alpha", creatorId: creator });
+    const now = new Date().toISOString();
+
+    db.transaction((tx) => {
+      cascadeDeleteSections(tx, project.id, now);
+    });
+
+    expect(seen).toEqual([`issues:${project.id}:${now}`]);
+  });
+
+  test("rejects a hook that cascades asynchronously", async () => {
+    // An async hook would land its writes after COMMIT, leaving the children
+    // live under a deleted project — the same hazard `provision` guards.
+    registerProjectSection({ key: "issues", cascadeDelete: (async () => {}) as unknown as () => void });
+
+    const creator = await seedUser();
+    const project = await createProject(db, { name: "Alpha", creatorId: creator });
+
+    expect(() => db.transaction((tx) => {
+      cascadeDeleteSections(tx, project.id, new Date().toISOString());
+    })).toThrow(/synchronously/);
   });
 });
 

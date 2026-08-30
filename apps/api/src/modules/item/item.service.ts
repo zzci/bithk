@@ -1,4 +1,4 @@
-import type { AppDatabase } from "@/db";
+import type { AppDatabase, AppTransaction } from "@/db";
 import { and, count, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { runWrite } from "@/db";
 import { issueDetails } from "@/modules/issue/schema";
@@ -194,6 +194,26 @@ export async function softDeleteItem(db: AppDatabase, id: string): Promise<void>
       ))
       .run();
   });
+}
+
+/**
+ * Bulk form of {@link softDeleteItem} that runs inside the caller's
+ * transaction: stamp every live item of the batch and tear down the batch's
+ * relation tuples. Backs the section `cascadeDelete` hooks, which run inside
+ * the project soft-delete transaction and so cannot await.
+ */
+export function softDeleteItemsTx(tx: AppTransaction, itemIds: readonly string[], now: string): void {
+  if (itemIds.length === 0)
+    return;
+
+  const ids = [...itemIds];
+  tx.update(items)
+    .set({ deletedAt: now, updatedAt: now, version: sql`${items.version} + 1` })
+    .where(and(inArray(items.id, ids), isNull(items.deletedAt)))
+    .run();
+  tx.delete(relationTuples)
+    .where(and(eq(relationTuples.namespace, "item"), inArray(relationTuples.objectId, ids)))
+    .run();
 }
 
 /**

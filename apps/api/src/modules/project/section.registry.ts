@@ -60,6 +60,20 @@ export interface ProjectSectionDefinition {
    */
   readonly hasData?: (db: AppDatabase, projectId: string) => Promise<boolean>;
   /**
+   * Soft-delete this section's own rows when the project is soft-deleted, in
+   * the same transaction that stamps the project row (ADR-008). Only sections
+   * MOUNTED on the project run, which loses nothing: `unmountSection` refuses
+   * while `hasData` holds, and a data-owning section counts its soft-deleted
+   * rows too, so a section that ever held rows is still mounted here. Omit it
+   * for a section with nothing to cascade.
+   *
+   * Synchronous for the same reason `provision` is — bun:sqlite transactions
+   * are, so a write deferred past an `await` would land after COMMIT, and the
+   * `void | undefined` return makes an `async` hook a compile error.
+   * `cascadeDeleteSections` keeps the equivalent runtime check.
+   */
+  readonly cascadeDelete?: (tx: AppTransaction, projectId: string, now: string) => void | undefined;
+  /**
    * Batched contribution to a project LIST row: ONE query for the whole page,
    * keyed by internal project id. Never called per row.
    *
