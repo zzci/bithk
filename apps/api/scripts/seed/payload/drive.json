@@ -1,5 +1,5 @@
 {
-  "_comment": "Drive seed. teamDirectories create shared spaces with members. entries are folders/files; parent references another entry key within the same owner. file entries reference an asset under assets/attachments; text entries inline content. versions adds extra uploaded versions to a file entry.",
+  "_comment": "Drive seed. teamDirectories create shared spaces with members. entries are folders/files; parent references another entry key within the same owner. ownerType is user | team_directory | project; a project owner is a projects.json or ships.json key, and those entries are what a project Files tab renders. file entries reference an asset under assets/attachments; text entries inline content. versions adds extra uploaded versions to a file entry. Projects with no entry here get a small folder+note baseline from the importer instead.",
   "teamDirectories": [
     {
       "key": "td-engineering",
@@ -35,11 +35,33 @@
     { "key": "ops-quote", "ownerType": "team_directory", "owner": "td-operations", "createdBy": "sup-nguyen", "type": "file", "name": "spare-parts-quote.txt", "parent": "ops-procurement", "asset": "spare-parts-quote.txt" },
     { "key": "admin-personal-folder", "ownerType": "user", "owner": "admin", "createdBy": "admin", "type": "folder", "name": "My Documents", "parent": null },
     { "key": "admin-personal-photo", "ownerType": "user", "owner": "admin", "createdBy": "admin", "type": "file", "name": "equipment-photo.jpg", "parent": "admin-personal-folder", "asset": "equipment-photo.jpg" },
-    { "key": "admin-personal-note", "ownerType": "user", "owner": "admin", "createdBy": "admin", "type": "text", "name": "todo.md", "parent": null, "content": "# Admin TODO\n\n- Review fleet safety program\n- Approve Q2 procurement" }
+    { "key": "admin-personal-note", "ownerType": "user", "owner": "admin", "createdBy": "admin", "type": "text", "name": "todo.md", "parent": null, "content": "# Admin TODO\n\n- Review fleet safety program\n- Approve Q2 procurement" },
+    { "key": "pra-package", "ownerType": "project", "owner": "refit-aurora", "createdBy": "pm-mercer", "type": "folder", "name": "Dry-Dock Package", "parent": null },
+    { "key": "pra-specs", "ownerType": "project", "owner": "refit-aurora", "createdBy": "eng-lin", "type": "folder", "name": "Work Specifications", "parent": "pra-package" },
+    { "key": "pra-hull-spec", "ownerType": "project", "owner": "refit-aurora", "createdBy": "eng-lin", "type": "file", "name": "hull-work-checklist.pdf", "parent": "pra-specs", "asset": "maintenance-checklist.pdf" },
+    { "key": "pra-survey", "ownerType": "project", "owner": "refit-aurora", "createdBy": "surveyor-petrov", "type": "folder", "name": "Survey Reports", "parent": "pra-package" },
+    { "key": "pra-thickness", "ownerType": "project", "owner": "refit-aurora", "createdBy": "surveyor-petrov", "type": "file", "name": "hull-thickness-report.txt", "parent": "pra-survey", "asset": "inspection-report.txt", "versions": ["spare-parts-quote.txt"] },
+    { "key": "pra-scope", "ownerType": "project", "owner": "refit-aurora", "createdBy": "pm-mercer", "type": "text", "name": "scope-of-work.md", "parent": "pra-package", "content": "# Scope of Work\n\n- Hull blasting and full recoat, all zones\n- Sea valve overhaul and class survey\n- Tailshaft withdrawal and bearing renewal\n- Anode replacement\n- Bow thruster tunnel inspection" },
+    { "key": "pav-certificates", "ownerType": "project", "owner": "aurora", "createdBy": "admin", "type": "folder", "name": "Certificates", "parent": null },
+    { "key": "pav-class", "ownerType": "project", "owner": "aurora", "createdBy": "admin", "type": "folder", "name": "Class and Statutory", "parent": "pav-certificates" },
+    { "key": "pav-class-report", "ownerType": "project", "owner": "aurora", "createdBy": "admin", "type": "file", "name": "class-survey-report.txt", "parent": "pav-class", "asset": "inspection-report.txt" },
+    { "key": "pav-register", "ownerType": "project", "owner": "aurora", "createdBy": "admin", "type": "text", "name": "certificate-register.md", "parent": "pav-certificates", "content": "# Certificate Register\n\n| Certificate | Issued | Expires |\n| --- | --- | --- |\n| Class Certificate | 2024-03-11 | 2029-03-10 |\n| Safety Equipment | 2025-06-02 | 2026-06-01 |\n| Load Line | 2024-03-11 | 2029-03-10 |" },
+    { "key": "pav-machinery", "ownerType": "project", "owner": "aurora", "createdBy": "admin", "type": "folder", "name": "Machinery", "parent": null },
+    { "key": "pav-engine-plan", "ownerType": "project", "owner": "aurora", "createdBy": "admin", "type": "file", "name": "main-engine-maintenance.pdf", "parent": "pav-machinery", "asset": "maintenance-checklist.pdf" },
+    { "key": "pav-engine-photo", "ownerType": "project", "owner": "aurora", "createdBy": "admin", "type": "file", "name": "engine-room-overview.jpg", "parent": "pav-machinery", "asset": "equipment-photo.jpg" },
+    { "key": "phw-records", "ownerType": "project", "owner": "harbour-workshop", "createdBy": "eng-lin", "type": "folder", "name": "Workshop Records", "parent": null },
+    { "key": "phw-manuals", "ownerType": "project", "owner": "harbour-workshop", "createdBy": "eng-voss", "type": "folder", "name": "Equipment Manuals", "parent": "phw-records" },
+    { "key": "phw-crane-manual", "ownerType": "project", "owner": "harbour-workshop", "createdBy": "eng-voss", "type": "file", "name": "deck-crane-service-manual.pdf", "parent": "phw-manuals", "asset": "maintenance-checklist.pdf" },
+    { "key": "phw-compressor-photo", "ownerType": "project", "owner": "harbour-workshop", "createdBy": "eng-okafor", "type": "file", "name": "compressor-nameplate.jpg", "parent": "phw-manuals", "asset": "equipment-photo.jpg" },
+    { "key": "phw-purchasing", "ownerType": "project", "owner": "harbour-workshop", "createdBy": "sup-nguyen", "type": "folder", "name": "Purchasing", "parent": "phw-records" },
+    { "key": "phw-quote", "ownerType": "project", "owner": "harbour-workshop", "createdBy": "sup-nguyen", "type": "file", "name": "welding-consumables-quote.txt", "parent": "phw-purchasing", "asset": "spare-parts-quote.txt" },
+    { "key": "phw-safety-notes", "ownerType": "project", "owner": "harbour-workshop", "createdBy": "eng-lin", "type": "text", "name": "workshop-safety-notes.md", "parent": "phw-records", "content": "# Workshop Safety Notes\n\n- Hot work permit required anywhere in the machine hall\n- Crane load-test certificate renewed every September\n- Compressor receiver inspected every 24 months\n- Test cell doors interlocked while the bench is under load" }
   ],
   "shares": [
     { "entry": "eng-engine-manual", "by": "eng-lin", "type": "direct", "permission": "view", "with": "pm-mercer" },
     { "entry": "eng-inspection", "by": "eng-voss", "type": "public_link", "permission": "download" },
-    { "entry": "ops-quote", "by": "ops-murphy", "type": "direct", "permission": "edit", "with": "sup-nguyen" }
+    { "entry": "ops-quote", "by": "ops-murphy", "type": "direct", "permission": "edit", "with": "sup-nguyen" },
+    { "entry": "pra-thickness", "by": "surveyor-petrov", "type": "direct", "permission": "download", "with": "pm-mercer" },
+    { "entry": "phw-crane-manual", "by": "eng-lin", "type": "direct", "permission": "view", "with": "eng-voss" }
   ]
 }
