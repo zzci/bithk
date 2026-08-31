@@ -1,6 +1,6 @@
 # TEST-002 - Stale and unreachable end-to-end specs
 
-- Status: In Progress
+- Status: Completed (2026-08-31)
 - Plan: -
 - Created: 2026-08-29
 

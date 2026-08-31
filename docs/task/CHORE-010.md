@@ -1,6 +1,6 @@
 # CHORE-010 - Dependency follow-ups left by CHORE-009
 
-- Status: In Progress
+- Status: Completed (2026-08-31)
 - Plan: -
 - Created: 2026-08-30
 

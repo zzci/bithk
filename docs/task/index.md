@@ -216,8 +216,8 @@
 | [UI-032](UI-032.md) | Project Files tab sizes itself with a magic number instead of filling the tab area | - | Completed | 2026-08-28 |
 | [REFACTOR-040](REFACTOR-040.md) | Project soft-delete cascade reaches into domain schemas | [PLAN-108](../plan/PLAN-108.md) | Completed | 2026-08-28 |
 | [DATA-002](DATA-002.md) | Reseed for the section model: every mounted surface needs data | - | Completed | 2026-08-29 |
-| [TEST-002](TEST-002.md) | Stale and unreachable end-to-end specs | - | In Progress | 2026-08-29 |
-| [UI-033](UI-033.md) | Remove the sidebar "Ships" entry | [PLAN-108](../plan/PLAN-108.md) | In Progress | 2026-08-31 |
+| [TEST-002](TEST-002.md) | Stale and unreachable end-to-end specs | - | Completed | 2026-08-29 |
+| [UI-033](UI-033.md) | Remove the sidebar "Ships" entry | [PLAN-108](../plan/PLAN-108.md) | Completed | 2026-08-31 |
 | [CHORE-009](CHORE-009.md) | Dependency refresh: 14 minor bumps and 5 majors | - | Completed | 2026-08-30 |
-| [CHORE-010](CHORE-010.md) | Dependency follow-ups left by CHORE-009 | - | In Progress | 2026-08-30 |
+| [CHORE-010](CHORE-010.md) | Dependency follow-ups left by CHORE-009 | - | Completed | 2026-08-30 |
 | [CHORE-008](CHORE-008.md) | Bring the repository root under typecheck | - | Completed | 2026-08-28 |
