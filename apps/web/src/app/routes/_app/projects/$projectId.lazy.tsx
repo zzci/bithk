@@ -139,68 +139,77 @@ function ProjectDetailLayout() {
     // plain flow shell it has always had, so its content sizes the page and the
     // page scrolls, margin collapsing and all.
     <div className={fills ? "flex min-h-0 flex-1 flex-col gap-5" : "space-y-5"}>
-      <Button
-        variant="ghost"
-        className="-ml-2 h-8 px-2 text-muted-foreground"
-        onClick={goBack}
-      >
-        <ArrowLeft aria-hidden="true" />
-        {backLabel}
-      </Button>
-
-      {/* Compact header — title + status, then creator/updated/tags inline on one meta row. */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="truncate text-2xl font-semibold">{project.name}</h1>
-            <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>
-              {t(`status.${project.status}` as const)}
-            </Badge>
+      {/* Everything from the tab row up is one fixed block: identical markup,
+          size and style on every tab, so switching tabs only swaps the body
+          below it. `shrink-0` keeps it off the flex column's shrink budget on a
+          fill tab, where a stretched direct child used to centre the back
+          control. */}
+      <div className="shrink-0 space-y-5">
+        {/* Compact header — back + title + status, then creator/updated/tags inline on one meta row. */}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Back is a leading affordance on the title rather than a row of
+                  its own: one row less above the tabs, and nothing to stretch. */}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="-ml-1.5 shrink-0 text-muted-foreground hover:text-foreground"
+                title={backLabel}
+                onClick={goBack}
+              >
+                <ArrowLeft aria-hidden="true" />
+              </Button>
+              <h1 className="truncate text-2xl font-semibold">{project.name}</h1>
+              <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>
+                {t(`status.${project.status}` as const)}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <User className="size-3.5 shrink-0" aria-hidden="true" />
+                {userNames.get(project.creatorId) ?? project.creatorId}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="size-3.5 shrink-0" aria-hidden="true" />
+                {formatDate(project.updatedAt)}
+              </span>
+              {project.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {project.tags.map(tag => (
+                    <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <User className="size-3.5 shrink-0" aria-hidden="true" />
-              {userNames.get(project.creatorId) ?? project.creatorId}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Clock className="size-3.5 shrink-0" aria-hidden="true" />
-              {formatDate(project.updatedAt)}
-            </span>
-            {project.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {project.tags.map(tag => (
-                  <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
-                ))}
-              </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <FavoriteToggle
+              favorited={favorites.has("project", project.id)}
+              pending={toggleFavorite.isPending}
+              onToggle={willFavorite => toggleFavorite.mutate({ targetType: "project", id: project.id, favorite: willFavorite })}
+            />
+            {caps.canOpenSettings && (
+              <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+                <Settings aria-hidden="true" />
+                {t("detail.settings")}
+              </Button>
             )}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <FavoriteToggle
-            favorited={favorites.has("project", project.id)}
-            pending={toggleFavorite.isPending}
-            onToggle={willFavorite => toggleFavorite.mutate({ targetType: "project", id: project.id, favorite: willFavorite })}
-          />
-          {caps.canOpenSettings && (
-            <Button variant="outline" onClick={() => setSettingsOpen(true)}>
-              <Settings aria-hidden="true" />
-              {t("detail.settings")}
-            </Button>
-          )}
-        </div>
-      </div>
 
-      {/* Tabs promoted to the page's primary navigation; each tab is a route. */}
-      <Tabs value={tab} onValueChange={v => v !== null && goToTab(v as ProjectDetailTab)}>
-        <TabsList variant="line" className="h-auto gap-6 overflow-x-auto text-base">
-          {tabs.map(section => (
-            <TabsTrigger key={section.key} value={section.key} className={TAB_TRIGGER_CLASS}>
-              {t(`${section.i18nNamespace}:${section.labelKey}`)}
-              {tabCount(tabCounts[section.key])}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+        {/* Tabs promoted to the page's primary navigation; each tab is a route. */}
+        <Tabs value={tab} onValueChange={v => v !== null && goToTab(v as ProjectDetailTab)}>
+          <TabsList variant="line" className="h-auto gap-6 overflow-x-auto text-base">
+            {tabs.map(section => (
+              <TabsTrigger key={section.key} value={section.key} className={TAB_TRIGGER_CLASS}>
+                {t(`${section.i18nNamespace}:${section.labelKey}`)}
+                {tabCount(tabCounts[section.key])}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
 
       {/* The active tab route renders here: a flex column whose body claims the
           leftover height for a fill tab, the plain block box for the rest. */}

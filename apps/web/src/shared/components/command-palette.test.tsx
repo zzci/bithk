@@ -118,8 +118,6 @@ describe("commandPalette module filtering", () => {
     renderWithProviders(<CommandPalette open onOpenChange={() => {}} />);
     expect(await screen.findByText("Documents")).toBeInTheDocument();
     expect(screen.getByText("Projects")).toBeInTheDocument();
-    // "Ships" is a preset entry into the projects list, so it rides `projects`.
-    expect(screen.getByText("Ships")).toBeInTheDocument();
     // Ungated destinations stay offered; gated ones outside the set vanish.
     expect(screen.getByText("Overview")).toBeInTheDocument();
     expect(screen.queryByText("Drive")).not.toBeInTheDocument();

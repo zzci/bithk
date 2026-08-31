@@ -229,6 +229,47 @@ describe("projectDetailLayout tab gating", () => {
       expect(outletHost.className).toContain(cls);
   });
 
+  it("keeps one fixed top block above the tabs on every tab", async () => {
+    // From the tab row up, the header is the same block whichever tab is
+    // active — only the body below it swaps. It also has to stay out of the
+    // fill shell's flex layout: a direct child of that flex column stretches,
+    // which is what centred the back control on the files tab.
+    mockRoutes({
+      detail: () => jsonResponse({
+        success: true,
+        data: project({ capabilities: ["issue.view", "files.view"] }),
+      }),
+    });
+
+    async function topBlock() {
+      const { container, unmount } = renderWithProviders(<ProjectDetailLayout />);
+      await screen.findByRole("tab", { name: "Overview" });
+      const block = (container.firstElementChild as HTMLElement).firstElementChild as HTMLElement;
+      const shape = {
+        className: block.className,
+        // The back control lives inside the block, in front of the title.
+        holdsBack: block.contains(screen.getByRole("button", { name: "Back to projects" })),
+        holdsTitle: block.contains(screen.getByRole("heading", { name: "Atlas Refit" })),
+        holdsTabs: block.contains(screen.getByRole("tab", { name: "Overview" })),
+      };
+      unmount();
+      return shape;
+    }
+
+    mockPathname.current = "/projects/p1";
+    const overview = await topBlock();
+    mockPathname.current = "/projects/p1/files";
+    const files = await topBlock();
+
+    expect(overview).toEqual(files);
+    expect(overview).toEqual({
+      className: "shrink-0 space-y-5",
+      holdsBack: true,
+      holdsTitle: true,
+      holdsTabs: true,
+    });
+  });
+
   it("renders the not-found branch when the project query errors", async () => {
     // The project-detail responder returns 404 so the project query rejects.
     mockRoutes({ detail: () => new Response(JSON.stringify({ success: false }), { status: 404, headers: { "Content-Type": "application/json" } }) });
