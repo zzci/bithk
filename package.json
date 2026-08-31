@@ -6,7 +6,7 @@
   "description": "Bun monorepo template for OAuth-backed internal workspaces.",
   "engines": {
     "bun": "1.4.0",
-    "node": "24.14.x"
+    "node": "^24.15.0"
   },
   "homepage": "https://github.com/zzci",
   "repository": {
@@ -77,6 +77,9 @@
     "vite": "^8.2.2",
     "@univerjs/core": {
       "nanoid": "5.1.16"
+    },
+    "jsdom": {
+      "undici": "^8.10.0"
     }
   }
 }

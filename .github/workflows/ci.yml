@@ -17,7 +17,7 @@ env:
   # Pin tool versions explicitly so a bun/node minor upgrade is a deliberate
   # PR, not a silent main-branch breakage. Renovate/dependabot can bump.
   BUN_VERSION: "1.4.0"
-  NODE_VERSION: "22.13.0"
+  NODE_VERSION: "24.20.0"
 
 jobs:
   check:
