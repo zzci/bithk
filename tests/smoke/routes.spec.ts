@@ -26,7 +26,6 @@ const project = {
 };
 
 const routes = [
-  { path: "/ships", title: "Ships" },
   { path: "/projects", title: "Projects" },
   { path: "/contacts", title: "Contacts" },
 ] as const;
@@ -52,8 +51,6 @@ async function mockApi(page: Page): Promise<void> {
       return route.fulfill({ json: { success: true, data: [] } });
     if (path === "/contacts")
       return route.fulfill({ json: { success: true, data: [] } });
-    if (path === "/ships")
-      return route.fulfill({ json: { success: true, data: [], meta: listMeta() } });
     if (path === "/projects") {
       const data = url.searchParams.get("status") === "archived" ? [] : [project];
       return route.fulfill({ json: { success: true, data, meta: listMeta(data.length) } });
