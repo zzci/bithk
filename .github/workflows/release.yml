@@ -23,7 +23,7 @@ concurrency:
 
 env:
   BUN_VERSION: "1.4.0"
-  NODE_VERSION: "24.14.x"
+  NODE_VERSION: "24.20.0"
   APP_NAME: bit
   ASSET_SUFFIX: linux-x64
   RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
