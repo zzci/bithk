@@ -69,6 +69,70 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Security
 
+- Dependency hygiene follow-ups (CHORE-010): three of the four items raised by
+  CHORE-009's review were applied and one was deliberately deferred with its
+  reason recorded. Every item passed a full `bun run check` at exit 0, and
+  osv-scanner on `bun.lock` reported "No issues found" at each step, so the
+  CHORE-005 baseline of 0 findings holds throughout.
+
+  **`jsdom` -> `undici` nested override, applied** — root `overrides` gained
+  `"jsdom": { "undici": "^8.10.0" }`, and the root `"undici": "^7.29.0"` entry
+  was kept. undici's registry `latest` is 8.10.0 and `jsdom@30.0.1` declares
+  `^8.9.0`, so all three undici consumers in the tree now resolve inside their
+  own declared ranges: `jsdom@30.0.1` (`^8.9.0`) -> 8.10.0, `shadcn@4.19.0`
+  (`^7.27.2`) -> 7.29.0 and `@dotenvx/dotenvx@1.75.1` (`^7.11.0`) -> 7.29.0.
+  Resolved `undici` entries in `bun.lock` went 1 -> 3 and the scanned package
+  count 1332 -> 1334. Bun encoded the override as the mirror image of what was
+  expected: it hoisted 8.10.0 to the bare `"undici"` key and demoted the two
+  7.x consumers to scoped keys (`shadcn/undici`, `@dotenvx/dotenvx/undici`).
+  The consequence is that the root `"undici": "^7.29.0"` override no longer
+  governs the hoisted slot, so a future undici consumer added without its own
+  constraint would land on 8.10.0 rather than 7.29.0. That is not a
+  regression — 8.10.0 is above the fix version for GHSA-v3r7-h72x-cjcm (fixed
+  in 6.28.0 / 7.29.0 / 8.9.0), the advisory the override exists for, and
+  osv-scanner stays at zero findings — but it is a real semantic change and is
+  recorded here rather than left to be rediscovered later.
+
+  **`@types/tar-stream` 3.1.4 removed, applied** — `tar-stream` 3.2.1 ships its
+  own `index.d.ts`, confirmed at the registry through both the top-level
+  `types` field and the `"."` exports condition. A `tsc --traceResolution` run
+  taken before the deletion proved the bundled declaration was already winning:
+  resolution landed on Package ID `tar-stream/index.d.ts@3.2.1`, pulling
+  `streamx@2.28.1` — the types CHORE-009's fixes were written against — and
+  `@types/tar-stream` appeared zero times in the entire trace, never even
+  probed, because `apps/api/tsconfig.json` sets `"types": ["bun"]` and so
+  auto-includes no `@types` package. No source change was needed under
+  `apps/api/src/modules/backup`. Scanned package count 1334 -> 1333.
+
+  **Node engine declaration aligned with CI, applied** — the four declarations
+  disagreed with each other, and none of them satisfied `jsdom@30.0.1`'s
+  `^22.22.2 || ^24.15.0 || >=26.0.0`. `engines.node` in `package.json` went
+  24.14.x -> ^24.15.0, `NODE_VERSION` in `.github/workflows/ci.yml`
+  22.13.0 -> 24.20.0, `NODE_VERSION` in `.github/workflows/release.yml`
+  24.14.x -> 24.20.0, and the "Node 24.14" phrase in `AGENTS.md` 24.14 ->
+  24.20. The Node 24 line won: three of the four declarations were already
+  there — only CI sat on 22 — and 24 is the current Active LTS ("Krypton")
+  while 22 ("Jod") is older. `^24.15.0` mirrors jsdom's own 24-line clause
+  exactly, so the declared floor and the requirement are the same statement,
+  and the caret rather than `>=` keeps the declaration inside the 24 LTS line
+  instead of silently admitting odd-numbered non-LTS releases. CI and release
+  keep an exact pin at 24.20.0, the newest 24.x at the registry, because
+  ci.yml's own comment requires a node minor upgrade to be a deliberate PR; an
+  exact pin sitting inside a caret floor cannot contradict that floor, which is
+  what removes the disagreement. This is a declaration fix rather than a
+  runtime one — the suites run under Bun and nothing sets engine-strict.
+
+  **`esbuild` floor, deferred** — the root override pins
+  `"esbuild": "^0.25.12"`, held there by `drizzle-kit`, while `vite@8.2.2`
+  declares `^0.27.0 || ^0.28.0` and `tsx@4.23.12` declares `~0.28.0`, so both
+  still resolve at 0.25.12. Re-checked at the registry: `drizzle-kit` `latest`
+  is 0.31.10 and still declares `esbuild` `^0.25.4`, so it has not widened.
+  The constraint is pre-existing rather than introduced here, and it was
+  deliberately not forced — the floor was left where it is and no
+  papering-over override was added. Unblock condition: a `drizzle-kit` release
+  declaring an esbuild 0.27 or 0.28 range, at which point the floor moves as
+  its own separately verified change.
+
 - Dependency refresh (CHORE-009): 17 of the 19 packages `bun outdated` reported
   were bumped and 2 were deferred with a recorded reason; nothing was dropped
   silently. `bun outdated --filter '*'` on the finished branch reports exactly
