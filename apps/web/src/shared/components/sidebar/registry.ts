@@ -4,7 +4,6 @@ import { driveNav } from "@/app/routes/_app/-drive.nav";
 import { hrNav } from "@/app/routes/_app/-hr.nav";
 import { overviewNav } from "@/app/routes/_app/-overview.nav";
 import { projectsNav } from "@/app/routes/_app/-projects.nav";
-import { shipsNav } from "@/app/routes/_app/-ships.nav";
 import { auditNav } from "@/app/routes/_app/admin/-audit.nav";
 import { cronNav } from "@/app/routes/_app/admin/-cron.nav";
 import { policiesNav } from "@/app/routes/_app/admin/-policies.nav";
@@ -17,7 +16,6 @@ const NAV_ITEMS: readonly NavItem[] = [
   documentsNav,
   driveNav,
   projectsNav,
-  shipsNav,
   contactsNav,
   hrNav,
   usersNav,

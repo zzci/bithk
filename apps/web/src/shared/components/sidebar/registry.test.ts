@@ -10,7 +10,7 @@ describe("getNavItems", () => {
 
   it("returns overview entries sorted by order", () => {
     const items = getNavItems("overview");
-    expect(items.map(i => i.key)).toEqual(["overview", "documents", "drive", "projects", "ships", "contacts", "hr"]);
+    expect(items.map(i => i.key)).toEqual(["overview", "documents", "drive", "projects", "contacts", "hr"]);
     expect(items.every(i => i.area === "overview")).toBe(true);
   });
 
@@ -21,16 +21,8 @@ describe("getNavItems", () => {
       documents: "documents",
       drive: "drive",
       projects: "projects",
-      // "Ships" is a preset link into the projects list, not a module of its own.
-      ships: "projects",
       contacts: "contacts",
       hr: "hr",
     });
-  });
-
-  it("gives the ships preset entry the projects path plus its section filter", () => {
-    const ships = getNavItems("overview").find(i => i.key === "ships");
-    expect(ships?.path).toBe("/projects");
-    expect(ships?.search).toEqual({ section: "ship-profile" });
   });
 });

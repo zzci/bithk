@@ -58,6 +58,9 @@ describe("appSidebar navigation", () => {
     expect(screen.getByRole("link", { name: /Documents/ })).toHaveAttribute("href", "/documents");
     expect(screen.getByRole("link", { name: /Drive/ })).toHaveAttribute("href", "/drive");
     expect(screen.getByRole("link", { name: /Projects/ })).toHaveAttribute("href", "/projects");
+    // Ships are projects (PLAN-108): the fleet is reached by filtering the
+    // projects list, so no top-level entry claims a module that is gone.
+    expect(screen.queryByRole("link", { name: /Ships/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Search/ })).toBeInTheDocument();
   });
 
@@ -78,9 +81,6 @@ describe("appSidebar module visibility", () => {
     renderSidebar();
     expect(screen.getByRole("link", { name: /Documents/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Projects/ })).toBeInTheDocument();
-    // "Ships" is a preset link into the projects list, so it rides the
-    // `projects` grant rather than a module key of its own.
-    expect(screen.getByRole("link", { name: /Ships/ })).toBeInTheDocument();
     // Ungated entries stay visible regardless of the module set.
     expect(screen.getByRole("link", { name: /Overview/ })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Drive/ })).not.toBeInTheDocument();
@@ -89,7 +89,7 @@ describe("appSidebar module visibility", () => {
 
   it("shows every module to a user granted all keys", () => {
     renderSidebar();
-    for (const name of [/Documents/, /Drive/, /Projects/, /Ships/, /Contacts/]) {
+    for (const name of [/Documents/, /Drive/, /Projects/, /Contacts/]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
   });
