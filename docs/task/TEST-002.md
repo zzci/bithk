@@ -1,6 +1,6 @@
 # TEST-002 - Stale and unreachable end-to-end specs
 
-- Status: Proposed
+- Status: In Progress
 - Plan: -
 - Created: 2026-08-29
 
@@ -22,18 +22,30 @@ Fixtures drifted precisely because nothing runs them.
 
 ## Scope
 
-- Delete or update the `/ships` smoke case to match the section model.
-- Decide per orphaned spec: wire it into a runner, or delete it. Do not leave
-  a spec on disk that nothing executes — that is the state that produced this
-  task.
-- If wiring them in, state which command runs them and make that command part
-  of a gate someone actually runs.
+Decision (2026-08-31): **delete**, do not wire in.
+
+- Remove the `/ships` entry from `tests/smoke/routes.spec.ts` (line 29) and the
+  `/ships` special case further down (around line 55). The rest of that file
+  still covers live routes and stays.
+- Delete `tests/e2e/contacts.spec.ts` (97 lines) and
+  `tests/e2e/projects.spec.ts` (123 lines) outright. Nothing runs them, their
+  fixtures have drifted past the current UI, and resurrecting them would mean
+  rewriting assertions against a UI that changed under PLAN-108 — new work
+  disguised as maintenance. If Playwright coverage of those flows is wanted
+  later, it should be written against the current UI as its own task.
+- Leave `tests/e2e/run.ts` and `tests/e2e/modules/**` alone: those bun tests
+  do run and are a different thing from the orphaned Playwright specs.
 
 Out of scope: broadening e2e coverage, and the pre-existing e2e failures
 unrelated to these two files.
 
 ## Verification
 
-- Every `*.spec.ts` under `tests/` is reachable from a documented command.
-- That command passes for the files this task touches.
-- `bun run check` EXIT 0.
+- Every remaining `*.spec.ts` under `tests/` is reachable from a documented
+  command — enumerate them against the Playwright config's `testDir` and say
+  which command runs each.
+- `bun run smoke` passes with the `/ships` entry gone.
+- No dangling imports or helpers left behind by the two deleted files
+  (`git grep` for anything they were the sole consumer of).
+- `bun run check` EXIT 0 — note that `tests/**` is inside the typecheck target
+  since CHORE-008, so deletions must not orphan a type reference.
