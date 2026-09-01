@@ -109,3 +109,4 @@
 | [PLAN-108](PLAN-108.md) | Projects as a composition of mounted sections; ships become a preset | Completed | 2026-08-28 |
 | [PLAN-109](PLAN-109.md) | Dependabot catch-up and CI security-scan baseline fix | Completed | 2026-08-27 |
 | [PLAN-110](PLAN-110.md) | Project documents: the documents module as a project section | Deferred | 2026-08-28 |
+| [PLAN-111](PLAN-111.md) | Remediate the 2026-09-01 repository audit findings | Draft | 2026-09-01 |
