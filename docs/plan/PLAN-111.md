@@ -99,14 +99,13 @@ not apply; status is edited in place as previous sessions did.
    `BACKUP_IMPORT_MAX_ARCHIVE_BYTES` say the server body cap is the larger of
    the two (regen env-reference).
 
-### CHORE-011 — dead tabs and orphan entry
+### CHORE-011 — orphan Vite API entry (re-scoped 2026-09-01)
 
-1. Delete the two tab files, their imports / triggers / contents in
-   `settings.lazy.tsx`, the `smtp` / `webhook` blocks and `tabs.smtp` /
-   `tabs.webhook` in `locales/{en,zh}/settings.json`, the
-   `settings:tabs.smtp` line in `locales/i18n-parity.test.ts`; reword
-   `page.description`; fix the comment in `shared/lib/api/settings.ts`.
-2. Delete `apps/api/src/dev.ts`; drop the `src/dev.ts` line from
+The SMTP / Webhook tabs are NOT removed: the user wants both features built
+(see Annotations; work filed as FEAT-059 / FEAT-060 under PLAN-112). What
+remains here:
+
+1. Delete `apps/api/src/dev.ts`; drop the `src/dev.ts` line from
    `apps/api/bunfig.toml`.
 
 ### CHORE-012 — P3 batch
@@ -143,7 +142,7 @@ FIX-074, CHORE-011, CHORE-012, each RED -> GREEN -> IMPROVE with
   multipart bodies in memory, so an admin-triggered import can use that much
   RAM. That is the behaviour PLAN-075 documented; operators who cannot afford
   it lower `BACKUP_IMPORT_MAX_ARCHIVE_BYTES`.
-- CHORE-011 drops locale keys; `check:i18n` is the gate.
+- CHORE-011 is now a file deletion with no runtime reference.
 - CHORE-012 touches only docs, a read helper and a config file.
 
 ## Scope
@@ -154,9 +153,7 @@ FIX-074, CHORE-011, CHORE-012, each RED -> GREEN -> IMPROVE with
   `config/sentinels.ts`, `modules/project/project.service.ts` + test,
   `modules/drive/{index,drive.routes}.ts`, `src/dev.ts` (deleted),
   `bunfig.toml`.
-- Web: `admin/settings.lazy.tsx` (+ new test), two tab files (deleted),
-  `locales/{en,zh}/settings.json`, `locales/i18n-parity.test.ts`,
-  `shared/lib/api/settings.ts`, `vitest.config.ts`.
+- Web: `vitest.config.ts` (the settings-tab removal was dropped from scope).
 - e2e: `tests/e2e/modules/backup/{export,restore}.test.ts`.
 - Docs and generated: backup.md, api.md, api-routes.md, openapi spec,
   api-types, env-reference.md, `.env.example`, architecture.md, README.md,
@@ -179,4 +176,7 @@ FIX-074, CHORE-011, CHORE-012, each RED -> GREEN -> IMPROVE with
 
 ## Annotations
 
-(none yet)
+- 2026-09-01 (user): SMTP and webhook must be completed as real features, not
+  removed. CHORE-011 is re-scoped: only the orphan `apps/api/src/dev.ts`
+  removal stays; the two tabs become the front end of new FEAT work (see the
+  revised proposal appended below once investigated).
