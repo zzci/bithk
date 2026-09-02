@@ -1,6 +1,6 @@
 # CHORE-011 - Remove the orphan Vite API entry
 
-- Status: In Progress (investigation; awaiting proposal approval)
+- Status: Completed (2026-09-01)
 - Plan: [PLAN-111](../plan/PLAN-111.md)
 - Owner: audit-remediation/session-2026-09-01
 - Created: 2026-09-01
@@ -24,3 +24,7 @@ decided to build those features instead of removing the tabs; that work is
 
 - `grep -rn "dev.ts" apps/api` finds no remaining reference.
 - `bun run check` EXIT 0.
+
+## Notes
+
+- 2026-09-01: `apps/api/src/dev.ts` deleted, `bunfig.toml` coverage-ignore entry dropped; no remaining reference. `bun run check` EXIT 0.

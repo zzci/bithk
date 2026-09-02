@@ -7,7 +7,6 @@ coverage = true
 # system-of-record for HTTP behaviour (see docs/develop/module/standards.md §5.3).
 coveragePathIgnorePatterns = [
   "src/index.ts",
-  "src/dev.ts",
   "src/app.ts",
   "src/pid-lock.ts",
   "src/shared/middleware/static.ts",

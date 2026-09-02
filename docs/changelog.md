@@ -299,6 +299,9 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Removed
 
+- `apps/api/src/dev.ts`, an `@hono/vite-dev-server` entry whose package was
+  never a dependency and which nothing referenced (CHORE-011).
+
 - The deprecated v1 JSON backup routes (FIX-072): `POST /api/backup/export`,
   `POST /api/backup/export-via-token` and `POST /api/backup/import` now answer
   `404`. They were deprecated with backup v2 (PLAN-075, 2026-06-10) and the
