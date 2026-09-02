@@ -311,6 +311,12 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Fixed
 
+- The server request-body cap now follows the larger of `MAX_UPLOAD_MB` and
+  `BACKUP_IMPORT_MAX_ARCHIVE_BYTES` (FIX-074). It was derived from the
+  per-file upload cap alone, so any backup archive or blobs.tar.gz above about
+  200 MB was refused with a bare 413 before the import route's own
+  (documented, 2 GiB) check could run.
+
 - Outbound OIDC requests (token exchange, userinfo, refresh, revocation) now
   carry a 10 s abort timeout, and the per-request auth provider no longer
   awaits the refresh-token grant inline (FIX-073). A slow or hung IdP token

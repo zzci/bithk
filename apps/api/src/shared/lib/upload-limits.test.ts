@@ -8,7 +8,7 @@ import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { files } from "@/modules/file/schema";
 import { AppError } from "@/shared/lib/errors";
-import { __resetUploadsCacheForTests, assertWithinTotalQuota, getUploadsUsedBytes, isWithinFileSize } from "./upload-limits";
+import { __resetUploadsCacheForTests, assertWithinTotalQuota, getUploadsUsedBytes, isWithinFileSize, requestBodyLimitBytes } from "./upload-limits";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -110,5 +110,23 @@ describe("assertWithinTotalQuota", () => {
       expect(e.code).toBe("QUOTA_EXCEEDED");
       expect(e.message).toMatch(/Upload quota exceeded/);
     }
+  });
+});
+
+// FIX-074: the Bun.serve body cap must admit the larger of the per-file
+// upload ceiling and the backup archive import cap (plus multipart slack),
+// otherwise a documented 2 GiB import is refused with a bare 413 before the
+// route's own check runs.
+describe("requestBodyLimitBytes", () => {
+  const SLACK = 64 * 1024;
+
+  test("follows the backup import cap when it is the larger value", () => {
+    const limit = requestBodyLimitBytes({ MAX_UPLOAD_BYTES: 200 * 1024 * 1024, BACKUP_IMPORT_MAX_ARCHIVE_BYTES: 2 * 1024 * 1024 * 1024 });
+    expect(limit).toBe(2 * 1024 * 1024 * 1024 + SLACK);
+  });
+
+  test("follows the upload ceiling when an operator lowers the import cap below it", () => {
+    const limit = requestBodyLimitBytes({ MAX_UPLOAD_BYTES: 200 * 1024 * 1024, BACKUP_IMPORT_MAX_ARCHIVE_BYTES: 50 * 1024 * 1024 });
+    expect(limit).toBe(200 * 1024 * 1024 + SLACK);
   });
 });

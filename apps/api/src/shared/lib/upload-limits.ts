@@ -34,6 +34,23 @@ export function isWithinFileSize(
   return size > 0 && size <= config.MAX_UPLOAD_BYTES;
 }
 
+/** Multipart framing overhead allowed above the largest single payload. */
+const REQUEST_BODY_SLACK_BYTES = 64 * 1024;
+
+/**
+ * `Bun.serve` request-body ceiling (FIX-074): the larger of the per-file
+ * upload cap and the backup archive import cap, plus multipart slack. The
+ * import routes enforce `BACKUP_IMPORT_MAX_ARCHIVE_BYTES` themselves, but
+ * only if the server lets the body reach them — with the cap derived from
+ * `MAX_UPLOAD_BYTES` alone, a documented 2 GiB archive was refused with a
+ * bare 413 before any route ran.
+ */
+export function requestBodyLimitBytes(
+  config: Pick<Config, "MAX_UPLOAD_BYTES" | "BACKUP_IMPORT_MAX_ARCHIVE_BYTES">,
+): number {
+  return Math.max(config.MAX_UPLOAD_BYTES, config.BACKUP_IMPORT_MAX_ARCHIVE_BYTES) + REQUEST_BODY_SLACK_BYTES;
+}
+
 export function maxAttachmentsPerResource(
   config: Pick<Config, "MAX_ATTACHMENTS_PER_RESOURCE">,
 ): number {

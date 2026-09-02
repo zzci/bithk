@@ -10,6 +10,7 @@ import { stopBackupStagingSweep } from "./modules/backup";
 import { stopCron } from "./modules/cron";
 import { stopFileGcSweep } from "./modules/file";
 import { acquirePidLock, releasePidLock } from "./pid-lock";
+import { requestBodyLimitBytes } from "./shared/lib/upload-limits";
 
 (async () => {
   const subcommandExit = await dispatchCliSubcommand(process.argv);
@@ -25,8 +26,10 @@ import { acquirePidLock, releasePidLock } from "./pid-lock";
   const server = Bun.serve({
     port: config.PORT,
     hostname: config.HOST,
-    // Padding above the per-file ceiling for multipart framing overhead.
-    maxRequestBodySize: config.MAX_UPLOAD_BYTES + 64 * 1024,
+    // The larger of the per-file upload cap and the backup import cap, plus
+    // multipart framing slack (FIX-074) — the import routes' own size checks
+    // only run if the body is allowed to reach them.
+    maxRequestBodySize: requestBodyLimitBytes(config),
     fetch: (req, srv) => fetch(req, { IP: srv.requestIP(req) }),
   });
 
