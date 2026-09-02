@@ -66,3 +66,18 @@ migration step is needed. The conversion is one fold, not two steps.
   modules with `projects` and no `ships`, 8 dangling local blobs enumerated.
 - `bun run check` EXIT 0 (the script lives under `apps/api/scripts/**`, which is
   inside the typecheck target).
+
+## Cutover runbook (decided 2026-09-02)
+
+1. Take a fresh copy of the production `app.db`; never run against the live
+   file.
+2. `bun run --filter @app/api db:fold -- --from <copy> --to <target>` and read
+   the reconciliation report; `FOLD_EXIT` must be 0.
+3. Clear auth transient state in the target so old logins do not survive:
+   `DELETE FROM sessions; DELETE FROM pkce_challenges; DELETE FROM auth_lockouts;
+   DELETE FROM totp_challenges;` then `VACUUM`. `user_totp_devices` stays.
+4. Keep the 4 orphan `ship_cover` references and the 15 soft-deleted ships
+   (carried as soft-deleted general projects) — accepted as-is.
+5. Env: drop `MAX_UPLOAD_BYTES` (new `MAX_UPLOAD_MB` defaults to 200); S3 config
+   unchanged; Bun 1.4.0.
+6. Swap the file, boot, take a fresh format-3 backup immediately.
