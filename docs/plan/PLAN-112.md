@@ -138,3 +138,9 @@ After PLAN-111 lands. One commit per task, each RED -> GREEN -> IMPROVE with
 ## Annotations
 
 - 2026-09-01 (user): `proceed` as proposed.
+
+## Status Notes
+
+- 2026-09-01: FEAT-059 landed (see the task notes). nodemailer ran on Bun
+  without any workaround — the in-process `smtp-server` round-trip passed on
+  the first run, so the fallback client in Risks is not needed. FEAT-060 next.

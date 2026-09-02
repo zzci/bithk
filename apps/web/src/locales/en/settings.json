@@ -196,7 +196,12 @@
     "fieldUsername": "Username",
     "fieldPassword": "Password",
     "fieldFromAddress": "From Address",
-    "fieldFromName": "From Name"
+    "fieldFromName": "From Name",
+    "secure": "Implicit TLS (port 465)",
+    "secureHint": "Off: STARTTLS is used when the server offers it (typically port 587).",
+    "sendTest": "Send test email",
+    "sending": "Sending…",
+    "testSent": "Test email sent to {{to}}."
   },
   "webhook": {
     "title": "Webhooks",

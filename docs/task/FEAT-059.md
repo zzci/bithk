@@ -1,6 +1,6 @@
 # FEAT-059 - SMTP email delivery: transport, test send, and notification emails
 
-- Status: In Progress (investigation; awaiting proposal approval)
+- Status: Completed (2026-09-01)
 - Plan: [PLAN-112](../plan/PLAN-112.md)
 - Owner: audit-remediation/session-2026-09-01
 - Created: 2026-09-01
@@ -44,3 +44,13 @@ Out of scope: per-user opt-out, HTML templates, digest emails, HR events
   recipient; a public-link share yields none.
 - e2e: the test-send route against the live API.
 - `bun run check` EXIT 0.
+
+## Notes
+
+- 2026-09-01: shipped as the `notification` module — `mail.service.ts`
+  (nodemailer 9.1.1, settings-backed, `smtp.secure`), `mail.queue.ts`,
+  `consumers.ts` on the new `onAuditEvent` stream (`share.created` direct,
+  `issue.assigned`), `POST /admin/smtp/test`; SMTP tab gains the TLS switch
+  and the test-send button. Unit round-trips run against an in-process
+  `smtp-server` 3.19.6 (dev dependency). e2e `notification/smtp.test.ts`
+  covers the gates. `bun run check` EXIT 0.

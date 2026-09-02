@@ -355,6 +355,12 @@ All settings routes require admin access.
 | PUT    | `/api/settings/:key`                       | Creates or updates one setting.                          |
 | DELETE | `/api/settings/:key`                       | Deletes one setting.                                     |
 
+## Notification
+
+| Method | Path                                       | Access        | Description                                                                                            |
+| ------ | ------------------------------------------ | ------------- | ------------------------------------------------------------------------------------------------------ |
+| POST   | `/api/admin/smtp/test`                     | Admin         | Sends a test email to the calling admin through the `smtp.*` settings (`409` when disabled / incomplete, `502` when the relay fails). See [`modules/notification.md`](../modules/notification.md). |
+
 ## Audit
 
 All audit routes require admin access.

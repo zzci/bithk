@@ -9,6 +9,7 @@ import { stopAuditRetentionSweep } from "./modules/audit";
 import { stopBackupStagingSweep } from "./modules/backup";
 import { stopCron } from "./modules/cron";
 import { stopFileGcSweep } from "./modules/file";
+import { stopNotifications } from "./modules/notification";
 import { acquirePidLock, releasePidLock } from "./pid-lock";
 import { requestBodyLimitBytes } from "./shared/lib/upload-limits";
 
@@ -85,6 +86,7 @@ import { requestBodyLimitBytes } from "./shared/lib/upload-limits";
     await safe("stopFileGcSweep", stopFileGcSweep, silent);
     await safe("stopBackupStagingSweep", stopBackupStagingSweep, silent);
     await safe("stopCron", stopCron, silent);
+    await safe("stopNotifications", stopNotifications, silent);
     await safe("logger.flush", () => logger.flush(), true);
     await safe("closeDb", closeDb, silent);
     await safe("logger.flush", () => logger.flush(), true);

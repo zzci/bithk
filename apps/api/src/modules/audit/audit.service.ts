@@ -26,6 +26,60 @@ export interface AuditParams {
   readonly result: "success" | "failure";
 }
 
+/**
+ * A persisted audit row as handed to `onAuditEvent` listeners: the request
+ * params plus the id and timestamp the insert produced.
+ */
+export interface AuditEvent extends AuditParams {
+  readonly id: string;
+  readonly createdAt: string;
+}
+
+export interface AuditListenerContext {
+  readonly db: AppDatabase;
+  readonly logger: Logger;
+}
+
+export type AuditListener = (event: AuditEvent, ctx: AuditListenerContext) => void | Promise<void>;
+
+const listeners = new Set<AuditListener>();
+
+/**
+ * Subscribe to every successfully persisted audit event (FEAT-059/060).
+ * `audit()` is the one choke point every mutating route passes through, so
+ * it doubles as the in-process event stream for webhooks and notification
+ * emails without any route knowing about either. Listeners run AFTER the
+ * insert committed, are isolated from each other, and can never fail the
+ * audited request — a throw or rejection is logged at `warn` and dropped.
+ * Returns the unsubscribe function.
+ */
+export function onAuditEvent(listener: AuditListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function __resetAuditListenersForTests(): void {
+  listeners.clear();
+}
+
+function emitAuditEvent(event: AuditEvent, ctx: AuditListenerContext): void {
+  for (const listener of listeners) {
+    try {
+      const result = listener(event, ctx);
+      if (result instanceof Promise) {
+        result.catch((err: unknown) => {
+          ctx.logger.warn({ err, action: event.action }, "audit listener rejected");
+        });
+      }
+    }
+    catch (err) {
+      ctx.logger.warn({ err, action: event.action }, "audit listener threw");
+    }
+  }
+}
+
 export interface AuditOptions {
   /**
    * Marks a high-sensitivity action (e.g. a destructive restore or a
@@ -57,6 +111,7 @@ export async function audit(
 ): Promise<string | undefined> {
   try {
     const id = ulid();
+    const createdAt = new Date().toISOString();
     await db.insert(auditEvents).values({
       id,
       actorId: params.actorId,
@@ -69,8 +124,10 @@ export async function audit(
       ip: params.ip,
       userAgent: params.userAgent,
       result: params.result,
-      createdAt: new Date().toISOString(),
+      createdAt,
     }).run();
+    if (listeners.size > 0)
+      emitAuditEvent({ ...params, id, createdAt }, { db, logger });
     return id;
   }
   catch (err) {

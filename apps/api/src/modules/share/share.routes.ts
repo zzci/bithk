@@ -221,7 +221,9 @@ export function shareRoutes() {
         resourceType: "share",
         resourceId: data.id,
         resourceName: data.resourceName,
-        detail: { resourceType: type, shareType: data.shareType, permission: data.permission },
+        // `sharedWithUserId` / `resourceId` let the notification consumer
+        // mail the recipient of a direct share (FEAT-059).
+        detail: { resourceType: type, shareType: data.shareType, permission: data.permission, resourceId: data.resourceId, sharedWithUserId: data.sharedWithUserId },
         result: "success",
       });
       return c.json({ success: true, data }, 201);

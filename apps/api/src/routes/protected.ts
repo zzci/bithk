@@ -17,6 +17,7 @@ import { issueTagBinding } from "@/modules/issue/issue.service";
 // Importing `itemRoutes` also runs the `item` module's load-time side effects
 // (backup contribution + the `item_attachment` file permission hooks).
 import { itemRoutes } from "@/modules/item";
+import { notificationRoutes } from "@/modules/notification";
 import { overviewRoutes } from "@/modules/overview";
 import { policyRoutes } from "@/modules/policy";
 import { procurementRoutes } from "@/modules/procurement";
@@ -76,6 +77,7 @@ export function protectedRoutes() {
   app.route("/", cronRoutes());
   app.route("/", fileRoutes());
   app.route("/", storageRoutes());
+  app.route("/", notificationRoutes());
 
   return app;
 }

@@ -14,6 +14,7 @@ import { startBackupStagingSweep } from "./modules/backup";
 import { initCronActions, startCron } from "./modules/cron";
 import { initFileModule, repairEmptyFileMimetypes, startFileGcSweep } from "./modules/file";
 import { s3PublicOrigin } from "./modules/file/storage/s3";
+import { startNotificationConsumers } from "./modules/notification";
 import { getAllRouteBindings, policyMiddleware } from "./modules/policy";
 import { backfillProjectRoles } from "./modules/project/project.roles";
 import { protectedRoutes, publicRoutes } from "./routes";
@@ -156,6 +157,9 @@ export async function buildFullApp({ config, db, logger }: AppDeps) {
   if (config.CRON_ENABLED) {
     await startCron({ db, logger, config });
   }
+  // Notification emails ride the audit stream (FEAT-059); mail itself is
+  // gated by the `smtp.enabled` setting, so subscribing is always safe.
+  startNotificationConsumers(config);
 
   api.route("/", publicRoutes());
   api.route("/", protectedRoutes());

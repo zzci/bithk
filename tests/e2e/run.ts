@@ -54,6 +54,7 @@ const MODULE_DIRS = [
   "file",
   "share",
   "hr",
+  "notification",
 ].map(d => join(E2E_DIR, "modules", d));
 
 interface PhaseSummary {

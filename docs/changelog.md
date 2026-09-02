@@ -11,6 +11,16 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Added
+
+- SMTP email delivery (FEAT-059). The admin Settings › SMTP tab's `smtp.*`
+  settings now drive a real transport (nodemailer): `POST /api/admin/smtp/test`
+  mails the calling admin, and two notification emails ride the new audit
+  event stream (`onAuditEvent`) — the recipient of a direct share and the
+  internal member a work order is assigned to — queued off the request path
+  and dropped with a log line when the relay fails. `smtp.secure` selects
+  implicit TLS. See `docs/modules/notification.md`.
+
 ### Changed — BREAKING
 
 - **Projects are now compositions of mounted sections; ships are a preset**

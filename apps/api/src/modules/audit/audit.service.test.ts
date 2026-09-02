@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { createDb } from "@/db";
 import { auditEvents } from "@/modules/audit/schema";
-import { audit, getAuditEventById, listAuditEvents } from "./audit.service";
+import { __resetAuditListenersForTests, audit, getAuditEventById, listAuditEvents, onAuditEvent } from "./audit.service";
 
 let db: AppDatabase;
 let dir: string;
@@ -286,5 +286,75 @@ describe("getAuditEventById", () => {
 
     expect((await getAuditEventById(db, "e_x"))?.actorId).toBe("u");
     expect(await getAuditEventById(db, "missing")).toBeUndefined();
+  });
+});
+
+// FEAT-059/060: `audit()` is the one choke point every mutating route passes
+// through, so it doubles as the in-process event stream for webhooks and
+// notification emails. Listeners run after the row is committed and can
+// never fail the audited request.
+describe("onAuditEvent", () => {
+  afterEach(() => {
+    __resetAuditListenersForTests();
+  });
+
+  const params = {
+    actorId: "u1",
+    actorName: "User One",
+    action: "thing.created",
+    resourceType: "thing",
+    resourceId: "t1",
+    resourceName: "Thing",
+    detail: { k: "v" },
+    ip: "127.0.0.1",
+    userAgent: "test",
+    result: "success" as const,
+  };
+
+  test("delivers the persisted event (with its id) and the db/logger context to every listener", async () => {
+    const seen: { id: string; action: string; hasDb: boolean }[] = [];
+    onAuditEvent((event, ctx) => {
+      seen.push({ id: event.id, action: event.action, hasDb: ctx.db === db });
+    });
+    const id = await audit(db, stubLogger, params);
+    expect(id).toBeDefined();
+    expect(seen).toEqual([{ id: id!, action: "thing.created", hasDb: true }]);
+  });
+
+  test("a throwing or rejecting listener is logged and does not fail audit()", async () => {
+    const calls: { level: string; msg: string; err: unknown }[] = [];
+    onAuditEvent(() => {
+      throw new Error("sync boom");
+    });
+    onAuditEvent(async () => {
+      throw new Error("async boom");
+    });
+    const id = await audit(db, makeRecordingLogger(calls), params);
+    expect(id).toBeDefined();
+    // Let the rejected promise settle.
+    await new Promise(r => setTimeout(r, 10));
+    expect(calls.filter(c => c.level === "warn")).toHaveLength(2);
+  });
+
+  test("unsubscribe stops delivery", async () => {
+    let count = 0;
+    const off = onAuditEvent(() => {
+      count++;
+    });
+    await audit(db, stubLogger, params);
+    off();
+    await audit(db, stubLogger, params);
+    expect(count).toBe(1);
+  });
+
+  test("a failed insert emits nothing", async () => {
+    let count = 0;
+    onAuditEvent(() => {
+      count++;
+    });
+    db.close();
+    await audit(db, stubLogger, params);
+    expect(count).toBe(0);
+    db = await createDb(resolve(dir, "app.db"));
   });
 });

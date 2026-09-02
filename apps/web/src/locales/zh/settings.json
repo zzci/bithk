@@ -196,7 +196,12 @@
     "fieldUsername": "用户名",
     "fieldPassword": "密码",
     "fieldFromAddress": "发件地址",
-    "fieldFromName": "发件人名称"
+    "fieldFromName": "发件人名称",
+    "secure": "隐式 TLS（465 端口）",
+    "secureHint": "关闭时若服务器支持则使用 STARTTLS（通常为 587 端口）。",
+    "sendTest": "发送测试邮件",
+    "sending": "发送中…",
+    "testSent": "测试邮件已发送至 {{to}}。"
   },
   "webhook": {
     "title": "Webhook",

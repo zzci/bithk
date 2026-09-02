@@ -88,6 +88,7 @@ apps/api/src/modules/
   file/            # blob storage; pluggable drivers + content dedupe
   issue/           # sub-type of item; owns the `issues` project section
   item/            # base for content sub-types
+  notification/    # SMTP mail + webhook fan-out fed by the audit event stream
   policy/
   procurement/     # sub-type of item; owns the `procurement` project section
   project/         # core project record + the project section registry
@@ -109,6 +110,7 @@ apps/api/src/modules/
 | `file` | Content-addressable blob storage with pluggable drivers and ref counting. | [file.md](modules/file.md) |
 | `issue` | Issues, attachments, comments; sub-type of `item`. Owns the `issues` project section. | [issue.md](modules/issue.md) |
 | `item` | Base primitive for content sub-types (common metadata + comments + permission edges). | [item.md](modules/item.md) |
+| `notification` | SMTP email delivery and webhook subscriptions, both driven by the audit event stream. | [notification.md](modules/notification.md) |
 | `policy` | Zanzibar-style relation tuples, check, expand, resource groups. | [policy.md](modules/policy.md) |
 | `procurement` | Project procurement records + the category vocabulary. Owns the `procurement` project section. | [procurement.md](modules/procurement.md) |
 | `project` | The project core record (metadata, sub-projects, roles, members) plus the **section registry** every other project surface mounts through. | [project.md](modules/project.md) |

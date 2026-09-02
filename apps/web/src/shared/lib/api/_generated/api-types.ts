@@ -3941,6 +3941,23 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/admin/smtp/test": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Send a test email to the calling admin through the configured SMTP relay */
+        readonly post: operations["postAdminSmtpTest"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -34539,6 +34556,118 @@ export interface operations {
             };
             /** @description Admin only */
             readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly postAdminSmtpTest: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly to: string;
+                            readonly messageId: string;
+                        };
+                    };
+                };
+            };
+            /** @description Calling account has no email address */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description SMTP disabled or incomplete */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Relay rejected or unreachable */
+            readonly 502: {
                 headers: {
                     readonly [name: string]: unknown;
                 };
