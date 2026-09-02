@@ -13,6 +13,13 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- One-shot fold of a pre-PLAN-108 database into the section model
+  (DATA-003). `bun run --filter @app/api db:fold -- --from <src> --to <dst>`
+  opens the source read-only, builds the target from the current baseline,
+  copies every table in backup-registry order inside one transaction, folds
+  `ships` into `ship_profiles` + section mounts, and prints a reconciliation
+  report; it exits non-zero (and removes the target) on any unexplained row
+  loss or a live ship without a base project.
 - Webhook subscriptions (FEAT-060). Admins register endpoints
   (`/api/admin/webhooks`: name, http(s) URL, optional signing secret, audit
   action patterns such as `issue.*`); every matching audit event is POSTed as

@@ -23,6 +23,7 @@
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
     "seed": "bun --env-file=../../.env run scripts/seed/seed.ts",
+    "db:fold": "bun scripts/migrate/plan108-fold.ts",
     "gen:api-docs": "bun scripts/gen-api-docs.ts",
     "check:api-docs": "bun scripts/gen-api-docs.ts --check",
     "gen:api-spec": "bun scripts/gen-api-spec.ts",
