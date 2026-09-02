@@ -3580,23 +3580,6 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/backup/export-via-token": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly get?: never;
-        readonly put?: never;
-        /** Service-token redacted backup export (streaming JSON) */
-        readonly post: operations["postBackupExportViaToken"];
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
     readonly "/backup/modules": {
         readonly parameters: {
             readonly query?: never;
@@ -3608,23 +3591,6 @@ export interface paths {
         readonly get: operations["getBackupModules"];
         readonly put?: never;
         readonly post?: never;
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/backup/export": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly get?: never;
-        readonly put?: never;
-        /** Admin streaming backup export (unredacted JSON) */
-        readonly post: operations["postBackupExport"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -3763,23 +3729,6 @@ export interface paths {
         readonly put?: never;
         /** Rescan quarantined files against the storage backend and heal restored blobs */
         readonly post: operations["postBackupV2BlobRescans"];
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/backup/import": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly get?: never;
-        readonly put?: never;
-        /** Import a JSON backup (multipart upload) */
-        readonly post: operations["postBackupImport"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -32284,100 +32233,6 @@ export interface operations {
             };
         };
     };
-    readonly postBackupExportViaToken: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody?: {
-            readonly content: {
-                readonly "application/json": {
-                    readonly modules: readonly string[];
-                };
-            };
-        };
-        readonly responses: {
-            /** @description Streaming JSON backup */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": unknown;
-                };
-            };
-            /** @description Unknown modules */
-            readonly 400: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Missing/invalid service token */
-            readonly 401: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Module scope required */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Export throttled / already in progress */
-            readonly 429: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
     readonly getBackupModules: {
         readonly parameters: {
             readonly query?: never;
@@ -32420,100 +32275,6 @@ export interface operations {
             };
             /** @description Admin only */
             readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly postBackupExport: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": {
-                    readonly modules: readonly string[];
-                };
-            };
-        };
-        readonly responses: {
-            /** @description Streaming JSON backup */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": unknown;
-                };
-            };
-            /** @description Unknown modules */
-            readonly 400: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Unauthenticated */
-            readonly 401: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Admin only */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Validation error */
-            readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;
                 };
@@ -33493,91 +33254,6 @@ export interface operations {
                             readonly scanned: number;
                             readonly healed: number;
                             readonly stillMissing: number;
-                        };
-                    };
-                };
-            };
-            /** @description Unauthenticated */
-            readonly 401: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Admin only */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly postBackupImport: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody?: {
-            readonly content: {
-                readonly "multipart/form-data": {
-                    /** Format: binary */
-                    readonly file?: string;
-                    readonly includeUsers?: string;
-                };
-            };
-        };
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly modules: readonly string[];
-                        readonly tablesImported: number;
-                        readonly rowsImported: number;
-                    };
-                };
-            };
-            /** @description No file / invalid JSON / FK or lock-out guard */
-            readonly 400: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
                         };
                     };
                 };

@@ -46,7 +46,7 @@ Errors use the shared error handler:
 | Public        | No session required.                                                                                      |
 | Authenticated | Requires a valid session cookie.                                                                          |
 | Admin         | Requires a valid session and `user.role === "admin"`.                                                     |
-| Service Token | Requires a scoped bearer (`SERVICE_TOKEN_METRICS` for `/api/metrics`, `SERVICE_TOKEN_BACKUP` for `/api/backup/export-via-token`). For non-interactive tooling (scrapers, backup). |
+| Service Token | Requires a scoped bearer (`SERVICE_TOKEN_METRICS` for `/api/metrics`, `SERVICE_TOKEN_BACKUP` for the `/api/backup/v2/*-via-token` routes). For non-interactive tooling (scrapers, backup). |
 | Personal Access Token | A user-level bearer (`Authorization: Bearer bithk_pat_…`, FEAT-034) resolved to its owning user. Satisfies "Authenticated"/"Admin" exactly as that user would, then additionally bounded by the token's per-module scope. For CLI / AI-agent use. |
 
 Every "Authenticated" / "Admin" route is mounted under `protectedRoutes`.
@@ -369,9 +369,14 @@ All audit routes require admin access.
 | Method | Path                                       | Access        | Description                                                                                            |
 | ------ | ------------------------------------------ | ------------- | ------------------------------------------------------------------------------------------------------ |
 | GET    | `/api/backup/modules`                      | Admin         | Lists exportable backup modules (with `name` + `deps`).                                                  |
-| POST   | `/api/backup/export`                       | Admin         | Exports selected modules as JSON.                                                                       |
-| POST   | `/api/backup/export-via-token`             | Service Token | Same payload as `/backup/export`, gated by `SERVICE_TOKEN_BACKUP` instead of session — for backup tooling.       |
-| POST   | `/api/backup/import`                       | Admin         | Imports a JSON backup file.                                                                             |
+| POST   | `/api/backup/v2/exports`                   | Admin         | Starts an archive export job; poll `GET /api/backup/v2/exports/:jobId`, download `.../download?artifact=data`. |
+| POST   | `/api/backup/v2/exports-via-token`         | Service Token | Redacted export job for backup tooling (`SERVICE_TOKEN_BACKUP`); poll / download via `.../status-via-token` and `.../download-via-token`. |
+| POST   | `/api/backup/v2/imports`                   | Admin         | Uploads and stages an archive (dry-run report); `POST .../:importId/apply` merges it, `{ wipeExisting: true }` for a full restore. |
+| POST   | `/api/backup/v2/blob-restores`             | Admin         | Restores a legacy blobs-only archive; `POST /api/backup/v2/blob-rescans` re-probes quarantined files. |
+
+The v1 JSON routes (`/api/backup/export`, `/api/backup/export-via-token`,
+`/api/backup/import`) were removed in FIX-072. Full route semantics:
+[`modules/backup.md`](../modules/backup.md).
 
 ## Cron jobs
 

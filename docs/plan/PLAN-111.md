@@ -1,6 +1,7 @@
 # PLAN-111 - Remediate the 2026-09-01 repository audit findings
 
-- Status: Draft
+- Status: Implementing
+- Approved: 2026-09-01
 - Task: [FIX-072](../task/FIX-072.md), [FIX-073](../task/FIX-073.md), [FIX-074](../task/FIX-074.md), [CHORE-011](../task/CHORE-011.md), [CHORE-012](../task/CHORE-012.md)
 - Campaign: local
 - Created: 2026-09-01
@@ -176,6 +177,9 @@ FIX-074, CHORE-011, CHORE-012, each RED -> GREEN -> IMPROVE with
 
 ## Annotations
 
+- 2026-09-01 (user): `proceed`, recommended options taken — delete the v1
+  `export-via-token` route too; keep the v1 services as the test harness and
+  file the harness port as a separate CHORE.
 - 2026-09-01 (user): SMTP and webhook must be completed as real features, not
   removed. CHORE-011 is re-scoped: only the orphan `apps/api/src/dev.ts`
   removal stays; the two tabs become the front end of new FEAT work (see the

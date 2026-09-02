@@ -221,7 +221,7 @@
 | [CHORE-009](CHORE-009.md) | Dependency refresh: 14 minor bumps and 5 majors | - | Completed | 2026-08-30 |
 | [CHORE-010](CHORE-010.md) | Dependency follow-ups left by CHORE-009 | - | Completed | 2026-08-30 |
 | [CHORE-008](CHORE-008.md) | Bring the repository root under typecheck | - | Completed | 2026-08-28 |
-| [FIX-072](FIX-072.md) | Retire the deprecated v1 JSON backup routes | [PLAN-111](../plan/PLAN-111.md) | In Progress | 2026-09-01 |
+| [FIX-072](FIX-072.md) | Retire the deprecated v1 JSON backup routes | [PLAN-111](../plan/PLAN-111.md) | Completed | 2026-09-01 |
 | [FIX-073](FIX-073.md) | OIDC outbound requests have no timeout and block the request path | [PLAN-111](../plan/PLAN-111.md) | In Progress | 2026-09-01 |
 | [FIX-074](FIX-074.md) | Server request-body cap silently undercuts the backup import cap | [PLAN-111](../plan/PLAN-111.md) | In Progress | 2026-09-01 |
 | [CHORE-011](CHORE-011.md) | Remove the orphan Vite API entry | [PLAN-111](../plan/PLAN-111.md) | In Progress | 2026-09-01 |

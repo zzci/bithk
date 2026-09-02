@@ -56,7 +56,7 @@
 | `OAUTH_USERINFO_URL` | url | — | no | Userinfo endpoint the server calls with the access token to load claims used to upsert the user row. |
 | `OIDC_LOGOUT_URL` | url | — | no | RP-Initiated Logout endpoint. When set the `/account/auth/logout` flow redirects the browser here after revoking the local session so the IdP also tears down its SSO cookie. |
 | `PORT` | number | `3000` | no | Port the API listens on. The bundled SPA is served from the same port. |
-| `SERVICE_TOKEN_BACKUP` | string | — | no | Bearer token authorising backup export over POST /api/backup/export-via-token. Keep distinct from SERVICE_TOKEN_METRICS so a leaked scraper credential cannot also exfiltrate the database. |
+| `SERVICE_TOKEN_BACKUP` | string | — | no | Bearer token authorising the v2 backup export job routes (POST /api/backup/v2/exports-via-token + status/download-via-token). Keep distinct from SERVICE_TOKEN_METRICS so a leaked scraper credential cannot also exfiltrate the database. |
 | `SERVICE_TOKEN_METRICS` | string | — | no | Bearer credentials for tooling that cannot use a session cookie. Each scope is independent so a leaked metrics scraper credential cannot also exfiltrate the database. Each value must be ≥ 32 chars; generate with: openssl rand -hex 32 Bearer token authorising scrapes of /api/metrics (read-only, Prometheus). |
 | `SESSION_MAX_AGE` | number | `86400` | no | Session lifetime in seconds; seeded into the settings table on first run. |
 | `SHELL_ACTION_TIMEOUT_SECONDS` | number | `300` | no | Per-execution timeout (seconds) for the `shell` cron action. Child process is killed via SIGTERM (then SIGKILL after a 5s grace). |

@@ -1,5 +1,11 @@
 /**
- * Backup EXPORT — table rows only.
+ * Backup EXPORT (v1 JSON format) — table rows only.
+ *
+ * FIX-072: the v1 JSON export routes were retired; `streamJsonBackup` has no
+ * production caller and remains only as the v1-format round-trip harness
+ * used by the module backup tests until they are ported onto
+ * `archive.service.ts`. `BackupData` is still the v1 dump shape consumed by
+ * `restore.service.ts`.
  *
  * SCOPE CAVEAT: file blob bytes are **out of backup scope**. This export
  * streams `files` / `file_references` table *rows*, never the underlying

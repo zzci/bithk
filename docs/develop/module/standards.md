@@ -212,7 +212,7 @@ Non-human actors (webhook / system): `actorId=client:<id>`, `actorName=client:<n
 
 ### 2.8 Backup contribution (mandatory for modules that own tables)
 
-Any module that owns persistent tables **must** register a `BackupContribution` so its rows participate in `/api/backup/export` and `/api/backup/import`. Modules without tables (e.g. `system`) skip this section.
+Any module that owns persistent tables **must** register a `BackupContribution` so its rows participate in the `/api/backup/v2/exports` jobs and `/api/backup/v2/imports` applies. Modules without tables (e.g. `system`) skip this section.
 
 **Files**:
 
@@ -266,7 +266,7 @@ The registration is a top-level side effect; `routes/protected.ts` already impor
 - One `BackupContribution` per logical module. If a meta-module (e.g. `account`) lumps several sub-modules together, **the meta-module owns the contribution**; sub-modules do not register separately. This keeps the backup file's `modules` array stable across template versions.
 - Within `tables`, list parent tables before their children (so per-module insert order alone satisfies foreign keys).
 - `deps` is string-typed and topologically resolved — a module declares only its first-degree dependencies; the registry walks the rest.
-- Renaming an existing `name` is a breaking change to the backup file format — bump the file `version` in `apps/api/src/modules/backup/export.service.ts` if you must.
+- Renaming an existing `name` is a breaking change to the backup archive format — bump `BACKUP_FORMAT_VERSION` in `apps/api/src/modules/backup/archive.service.ts` if you must.
 
 #### Import fallbacks & transforms (v2 cross-schema hooks)
 
@@ -299,8 +299,8 @@ Rules that follow from the engine:
 **Tests** (e2e, in `tests/e2e/modules/backup/`):
 
 - `/api/backup/modules` includes the new module's `name`.
-- `/api/backup/export` round-trips at least one row of the new module's tables.
-- `/api/backup/import` restores the round-tripped data on a fresh DB.
+- a `/api/backup/v2/exports` job round-trips at least one row of the new module's tables.
+- `/api/backup/v2/imports` + `apply` restores the round-tripped data on a fresh DB.
 
 ---
 

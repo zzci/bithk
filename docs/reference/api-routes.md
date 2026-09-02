@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 342 routes total.
+> 339 routes total.
 
 | Method | Path |
 |---|---|
@@ -58,9 +58,6 @@
 | POST | `/api/admin/storage/sync-to-s3` |
 | GET | `/api/audit` |
 | GET | `/api/audit/:id` |
-| POST | `/api/backup/export` |
-| POST | `/api/backup/export-via-token` |
-| POST | `/api/backup/import` |
 | GET | `/api/backup/modules` |
 | POST | `/api/backup/v2/blob-rescans` |
 | POST | `/api/backup/v2/blob-restores` |

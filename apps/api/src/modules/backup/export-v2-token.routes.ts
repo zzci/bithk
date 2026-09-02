@@ -11,10 +11,9 @@
  *      are scrubbed per NDJSON row and `manifest.redacted` is true;
  *   2. the request MUST name an explicit module scope; an unscoped request
  *      FAILS CLOSED (403) — there is no "export everything" default;
- *   3. the v1 per-token in-flight semaphore and
- *      `BACKUP_EXPORT_MIN_INTERVAL_SECONDS` gate apply to the trigger
- *      (shared state with v1 — one token, one export pipeline), on top of
- *      the process-wide one-running-export-job guard.
+ *   3. the per-token in-flight semaphore and
+ *      `BACKUP_EXPORT_MIN_INTERVAL_SECONDS` gate apply to the trigger, on
+ *      top of the process-wide one-running-export-job guard.
  * Job visibility is bucket-scoped: token routes only see jobs created by
  * the same token bucket (admin jobs 404 here); admin routes see every job.
  * Binding the allowed module scope to the token itself remains the v1
@@ -39,12 +38,22 @@ import {
   getExportJob,
   startExportJob,
 } from "./export-job.service";
-import {
-  backupExportInFlight,
-  backupExportLastSuccess,
-  tokenBucketKey,
-} from "./export.routes";
 import { getModuleNames } from "./registry";
+
+// Per-token in-flight semaphore + minimum-interval gate. A leaked backup
+// token must not double as a DOS lever: each token can have at most one
+// export job in progress at a time, and successive successful exports are
+// spaced at least `BACKUP_EXPORT_MIN_INTERVAL_SECONDS` apart. State is
+// process-local — for HA pairs, set the env var on every replica. (Moved
+// here from the retired v1 `export.routes.ts` in FIX-072; this route is the
+// only remaining consumer.)
+export const backupExportInFlight = new Set<string>();
+export const backupExportLastSuccess = new Map<string, number>();
+const RE_NON_ALNUM = /\W+/g;
+
+export function tokenBucketKey(token: string): string {
+  return `t:${token.slice(0, 8).replace(RE_NON_ALNUM, "_")}`;
+}
 
 const RE_TIMESTAMP_CHARS = /[:.]/g;
 
@@ -141,8 +150,8 @@ export function backupExportV2TokenRoutes() {
       if (invalidModules.length > 0)
         return c.json({ success: false, error: { code: "INVALID_MODULES", message: `Unknown modules: ${invalidModules.join(", ")}` } }, 400);
 
-      // v1 per-token gates, SHARED with the v1 streaming route. The in-flight
-      // marker is held until the job's background runner settles.
+      // Per-token gates. The in-flight marker is held until the job's
+      // background runner settles.
       if (backupExportInFlight.has(bucket)) {
         c.header("Retry-After", "60");
         await auditFromCtx(c, {

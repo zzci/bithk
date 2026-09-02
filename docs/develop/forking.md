@@ -53,7 +53,7 @@ The rebrand helper covers:
 | Surface | Where |
 |---|---|
 | Release artifact name and lode manifest metadata | `scripts/package.ts` |
-| Backup download filename (`<APP_NAME>-backup-*.json`) | `apps/api/src/modules/backup/export.routes.ts`, `apps/web/src/app/routes/_app/admin/settings.lazy.tsx` |
+| Backup download filename (`<APP_NAME>-backup-v2-*.tar.gz`) | `apps/api/src/modules/backup/export-v2.routes.ts`, `apps/api/src/modules/backup/export-v2-token.routes.ts` |
 | `nsl` dev URL routing | `apps/api/package.json`, `apps/web/package.json` |
 
 ### What flows from `APP_DISPLAY_NAME`

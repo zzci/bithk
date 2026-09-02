@@ -1,6 +1,7 @@
 # PLAN-112 - SMTP email delivery and webhook subscriptions
 
-- Status: Draft
+- Status: Implementing
+- Approved: 2026-09-01
 - Task: [FEAT-059](../task/FEAT-059.md), [FEAT-060](../task/FEAT-060.md)
 - Campaign: local
 - Created: 2026-09-01
@@ -136,4 +137,4 @@ After PLAN-111 lands. One commit per task, each RED -> GREEN -> IMPROVE with
 
 ## Annotations
 
-(none yet)
+- 2026-09-01 (user): `proceed` as proposed.

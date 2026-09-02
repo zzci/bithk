@@ -1,6 +1,13 @@
 /**
  * Backup RESTORE — table rows only.
  *
+ * FIX-072: the v1 JSON import route was retired. `validateBackupData` and
+ * `importJsonBackup` no longer have a production caller; they remain as the
+ * v1-format round-trip harness used by the module backup tests
+ * (`<module>.backup.test.ts`) until those are ported onto the v2 archive
+ * services. `assertSane` / `assertIdShape` / the row caps and
+ * `reconcileRestoredFiles` are live v2 dependencies.
+ *
  * SCOPE CAVEAT: file blob bytes are **out of backup scope** (see the header
  * of `export.service.ts`). A backup never carries the objects behind
  * `files` rows; it only replays the rows. After a restore onto a
@@ -40,8 +47,6 @@ export interface ReconcileResult {
   /** `files` rows quarantined because their blob was absent on the backend. */
   readonly quarantined: number;
 }
-
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 const INSERT_BATCH_SIZE = 500;
 
@@ -180,12 +185,6 @@ export function validateBackupData(data: unknown): BackupData {
     throw new AppError(`Backup exceeds ${MAX_TOTAL_ROWS}-row cap`, 400, "INVALID_BACKUP_ROW");
 
   return current;
-}
-
-export function validateFileSize(size: number): void {
-  if (size > MAX_FILE_SIZE) {
-    throw new AppError(`File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`, 400, "FILE_TOO_LARGE");
-  }
 }
 
 function getDeleteOrder(modules: string[]): SQLiteTable[] {

@@ -23,9 +23,8 @@ import {
   getExportJob,
   startExportJob,
 } from "./export-job.service";
-import { backupExportV2TokenRoutes } from "./export-v2-token.routes";
+import { backupExportInFlight, backupExportV2TokenRoutes, tokenBucketKey } from "./export-v2-token.routes";
 import { backupExportV2Routes } from "./export-v2.routes";
-import { backupExportInFlight, tokenBucketKey } from "./export.routes";
 import { __resetBackupRegistryForTests, registerBackupContribution } from "./registry";
 import "@/modules/account";
 

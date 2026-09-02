@@ -230,7 +230,7 @@ export const configSchema = z.object({
   SERVICE_TOKEN_BACKUP: z.string().min(32).optional(),
 
   // Minimum seconds between consecutive successful
-  // `/api/backup/export-via-token` calls. Throttles a leaked backup token
+  // `/api/backup/v2/exports-via-token` calls. Throttles a leaked backup token
   // from being turned into a DOS lever (repeated full-DB reads amplify
   // WAL pressure). Default 300s = 5 minutes; pair with a per-token
   // in-flight semaphore enforced at the route layer.

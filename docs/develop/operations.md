@@ -79,12 +79,12 @@ Two endpoints accept a bearer instead of a session cookie. Each scope is gated b
 
 | Endpoint | Env |
 |---|---|
-| `POST /app/api/backup/export-via-token` — streams the JSON backup. Used by `examples/compose/backup-sidecar.yml`. | `SERVICE_TOKEN_BACKUP` |
+| `POST /app/api/backup/v2/exports-via-token` — starts a redacted archive export job; poll `GET .../exports/:jobId/status-via-token`, download `GET .../exports/:jobId/download-via-token?artifact=data`. (The v1 `/backup/export-via-token` JSON route was removed in FIX-072.) | `SERVICE_TOKEN_BACKUP` |
 | `GET /app/api/metrics` — Prometheus exposition (HTTP request counter + duration histogram). Configure Prometheus to send `Authorization: Bearer ${SERVICE_TOKEN_METRICS}`. | `SERVICE_TOKEN_METRICS` |
 
 Operators that don't need a surface should leave its env var unset; the endpoint then returns `503 SERVICE_TOKEN_DISABLED`. Rotate by changing the env var on both the API and any caller, then restarting the API. Constant-time comparison; no length oracle.
 
-Treat each token like an OAuth client secret: store in your secrets manager, never commit to git. The audit row for `backup.export-via-token` records `actor:"system"` / `actorName:"system:backup-sidecar"` so you can distinguish automated dumps from operator-driven ones.
+Treat each token like an OAuth client secret: store in your secrets manager, never commit to git. The audit row for a token-triggered `backup.export` records `actor:"system"` / `actorName:"system:backup-sidecar"` so you can distinguish automated dumps from operator-driven ones.
 
 ---
 

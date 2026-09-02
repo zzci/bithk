@@ -85,7 +85,7 @@ Highlights for a production deploy:
 | `DEFAULT_ADMIN` | Comma-separated emails that get admin role on first login (no-op if users exist) |
 | `LOG_FILE` / `LOG_TO_STDOUT` | Either rotates on disk under `DATA_DIR` or hands lines to the runtime |
 | `AUDIT_RETENTION_DAYS` | `0` (keep forever) by default; set to a finite value in long-running deployments to bound `audit_events` size |
-| `SERVICE_TOKEN_METRICS`, `SERVICE_TOKEN_BACKUP` | Scoped bearers for `/api/metrics` and `/api/backup/export-via-token` |
+| `SERVICE_TOKEN_METRICS`, `SERVICE_TOKEN_BACKUP` | Scoped bearers for `/api/metrics` and the `/api/backup/v2/*-via-token` export routes |
 
 ## Volumes
 
@@ -351,7 +351,7 @@ The DB is a single SQLite file with WAL. Two viable strategies:
 
 ### Application-level export
 
-The `/api/backup/export` admin endpoint produces a JSON dump of selected modules. Import is **schema-version-locked** — see "Upgrade" below.
+The `/api/backup/v2/exports` admin job produces a `.tar.gz` archive of selected modules (download from `.../download?artifact=data`). Import is **schema-version-locked** — see "Upgrade" below.
 
 ### Uploaded files
 
@@ -366,6 +366,6 @@ SQLite migrations are embedded in the binary and run on boot. The risky cases:
 | Add table / add nullable column | Drop in. Bring up new binary; migration auto-runs. |
 | Add NOT NULL column with default | Same — defaults apply during migration. |
 | Drop or rename column | Stop traffic, snapshot DB, deploy new binary. Drizzle's "create new table + copy + swap" runs at boot; verify size and row count after. |
-| Major schema reshuffle | Use `/api/backup/export` (still on old binary), deploy new binary, `/api/backup/import` to a fresh DB. Skip in-place migration entirely. |
+| Major schema reshuffle | Run a `/api/backup/v2/exports` job (still on the old binary), deploy the new binary, `/api/backup/v2/imports` + `apply` into a fresh DB. Skip in-place migration entirely. |
 
 Always run a restore drill (export → import on a scratch DB) before a production upgrade — it's the only way to know the schema-version locked import path is still intact.

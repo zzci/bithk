@@ -4,7 +4,7 @@ A Bun monorepo template for OAuth-backed internal workspaces. Ships with:
 
 - **API** — Hono on Bun, SQLite (`bun:sqlite`) via Drizzle.
 - **Web** — React 19 + TanStack Router + Tailwind v4, file-based routes, dual EN/ZH i18n.
-- **Modules** — account/auth (OAuth + TOTP), groups, Zanzibar relation tuples, `item` base + `file` storage, documents, issues, cron, settings, audit logs, JSON backup.
+- **Modules** — account/auth (OAuth + TOTP), groups, Zanzibar relation tuples, `item` base + `file` storage, documents, issues, cron, settings, audit logs, archive backup.
 - **Build** — lode-compatible tarball artifact via `scripts/package.ts`.
 
 ## Quick start

@@ -297,6 +297,18 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   PLAN-108. The repository root itself is still uncovered; that is tracked
   separately as CHORE-008.
 
+### Removed
+
+- The deprecated v1 JSON backup routes (FIX-072): `POST /api/backup/export`,
+  `POST /api/backup/export-via-token` and `POST /api/backup/import` now answer
+  `404`. They were deprecated with backup v2 (PLAN-075, 2026-06-10) and the
+  v1 importer was the one import path without the PLAN-108 format-epoch gate,
+  still running the delete-then-insert engine. Use the v2 job routes:
+  `POST /api/backup/v2/exports` (+ `exports-via-token` for `SERVICE_TOKEN_BACKUP`
+  tooling) and `POST /api/backup/v2/imports` + `.../apply`. Existing `.json`
+  dumps can only be read by a pre-FIX-072 build. `GET /api/backup/modules` is
+  unchanged.
+
 ### Fixed
 
 - A page of ship project cards renders in one request instead of one profile

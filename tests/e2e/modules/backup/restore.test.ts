@@ -1,8 +1,5 @@
-// Backup export → restore round-trip.
-//
-// The export endpoint streams a complete JSON snapshot of the running
-// DB; the import endpoint replays it. This test walks the full cycle
-// end-to-end:
+// Backup v2 export → import round-trip (FIX-072: ported from the retired v1
+// JSON routes).
 //
 //   1. spin up an isolated API instance — plaintext DB and single-user
 //      mode keep this test independent from the orchestrator's dex.
@@ -11,14 +8,16 @@
 //      bypass the OAuth dance entirely.
 //   2. log in via /api/account/auth/login-local to seed a real admin
 //      session + user row.
-//   3. POST /api/backup/export with [users, settings].
-//   4. POST /api/backup/import with includeUsers=true → the import
-//      replays the same rows back into the DB.
-//   5. assert the import response reports rowsImported >= the snapshot.
+//   3. POST /api/backup/v2/exports with [users, settings], poll the job to
+//      `completed`, download the data artifact.
+//   4. POST /api/backup/v2/imports (multipart) → staged dry-run report;
+//      POST .../apply with wipeExisting=true → poll to `completed`.
+//   5. assert the apply report inserted at least the exported rows and that
+//      the importing admin's session survived the wipe (FIX-062 re-binds it).
 //
 // The test deliberately uses its own API subprocess instead of the
-// shared phase-B API: the restore truncates the `users` table, which
-// cascades-deletes every `sessions` row, which would otherwise break
+// shared phase-B API: the wipe truncates the `users` table, which
+// cascades-deletes every other `sessions` row, which would otherwise break
 // every later phase-B test that shares a cached admin session.
 
 import type { Subprocess } from "bun";
@@ -125,8 +124,35 @@ afterAll(async () => {
   }
 });
 
-describe("/api/backup round-trip (export → import)", () => {
-  it("admin can export then restore the same JSON back into the live DB", async () => {
+interface ExportJobStatus {
+  state: string;
+  error: string | null;
+}
+
+interface ImportJobStatus {
+  state: string;
+  error: string | null;
+  report: { totals: { inserted: number } };
+  result: { totals: { inserted: number }; wipe?: { total: number } } | null;
+}
+
+async function pollUntil<T extends { state: string }>(
+  read: () => Promise<T>,
+  done: (s: T) => boolean,
+  label: string,
+): Promise<T> {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const status = await read();
+    if (done(status))
+      return status;
+    await Bun.sleep(200);
+  }
+  throw new Error(`${label} did not settle in time`);
+}
+
+describe("/api/backup/v2 round-trip (export job → import apply)", () => {
+  it("admin can export an archive and wipe-restore it into the live DB", async () => {
     const admin = new ApiClient(BASE);
     const login = await admin.raw("/api/account/auth/login-local", {
       method: "POST",
@@ -135,41 +161,59 @@ describe("/api/backup round-trip (export → import)", () => {
     expect(login.status).toBe(200);
     expect(admin.cookies.has("session_id")).toBe(true);
 
-    const exportRes = await admin.raw("/api/backup/export", {
+    // 3. Export job → completed → download the data artifact.
+    const start = await admin.raw("/api/backup/v2/exports", {
       method: "POST",
       body: { modules: ["users", "settings"] },
     });
-    expect(exportRes.status).toBe(200);
-    const dump = await exportRes.json() as {
-      version: number;
-      modules: string[];
-      tables: Record<string, unknown[]>;
-    };
-    expect(dump.version).toBe(1);
-    expect(dump.modules).toContain("users");
-    expect(dump.modules).toContain("settings");
+    expect(start.status).toBe(202);
+    const { jobId } = await start.json() as { jobId: string };
 
-    const beforeUsers = (dump.tables.users ?? []).length;
-    const beforeSettings = (dump.tables.settings ?? []).length;
-    expect(beforeUsers).toBeGreaterThan(0);
+    const exported = await pollUntil(
+      () => admin.json<ExportJobStatus>(`/api/backup/v2/exports/${jobId}`),
+      s => s.state === "completed" || s.state === "failed",
+      "export job",
+    );
+    expect(exported.error).toBeNull();
+    expect(exported.state).toBe("completed");
 
-    // Replay the dump back into the same DB. `includeUsers=true` is
-    // required so the importing admin's row survives — otherwise the
-    // service refuses with RESTORE_FK_MISSING_USERS / RESTORE_WOULD_LOCK_OUT.
-    const blob = new Blob([JSON.stringify(dump)], { type: "application/json" });
+    const download = await admin.raw(`/api/backup/v2/exports/${jobId}/download?artifact=data`);
+    expect(download.status).toBe(200);
+    expect(download.headers.get("content-type")).toMatch(/application\/gzip/);
+    const archive = await download.blob();
+    expect(archive.size).toBeGreaterThan(0);
+
+    // 4. Stage the archive; the dry-run report must see the exported rows.
     const fd = new FormData();
-    fd.append("file", blob, "backup.json");
-    fd.append("includeUsers", "true");
+    fd.append("file", archive, "backup.tar.gz");
+    const staged = await admin.raw("/api/backup/v2/imports", { method: "POST", formData: fd });
+    expect(staged.status).toBe(201);
+    const { importId, report } = await staged.json() as { importId: string; report: { totals: { inserted: number } } };
+    // The dry-run counts what a plain merge would insert; every row already
+    // exists, so it is 0 here — the wipe apply below is what re-inserts them.
+    expect(report.totals.inserted).toBeGreaterThanOrEqual(0);
 
-    const importRes = await admin.raw("/api/backup/import", {
+    const apply = await admin.raw(`/api/backup/v2/imports/${importId}/apply`, {
       method: "POST",
-      formData: fd,
+      body: { wipeExisting: true },
     });
-    expect(importRes.status).toBe(200);
-    const importBody = await importRes.json() as { success: boolean; rowsImported: number; tablesImported: number };
-    expect(importBody.success).toBe(true);
-    // The service may emit additional FK-related rows beyond the two tables
-    // we asked for, so use >= rather than equality.
-    expect(importBody.rowsImported).toBeGreaterThanOrEqual(beforeUsers + beforeSettings);
+    expect(apply.status).toBe(202);
+
+    const applied = await pollUntil(
+      () => admin.json<ImportJobStatus>(`/api/backup/v2/imports/${importId}`),
+      s => s.state === "completed" || s.state === "failed",
+      "import apply",
+    );
+    expect(applied.error).toBeNull();
+    expect(applied.state).toBe("completed");
+    expect(applied.result?.wipe?.total ?? 0).toBeGreaterThan(0);
+    // The wipe emptied users + settings; the merge re-inserted every row,
+    // so at least the admin row and one setting came back.
+    expect(applied.result?.totals.inserted ?? 0).toBeGreaterThanOrEqual(2);
+
+    // 5. FIX-062: the importing admin's session is re-bound inside the wipe
+    // transaction, so the same cookie still authenticates.
+    const me = await admin.raw("/api/account/me");
+    expect(me.status).toBe(200);
   });
 });

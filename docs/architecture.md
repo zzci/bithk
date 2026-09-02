@@ -2,7 +2,7 @@
 
 > Examples assume `BASE_PATH=/app`. The app is mounted at root (`/`) by default; set `BASE_PATH` to serve under a URL prefix.
 
-This is a Bun monorepo template that provides an OAuth-backed internal workspace: account management, Zanzibar-style policy tuples, documents, issues, contacts, settings, audit logs, and JSON backup.
+This is a Bun monorepo template that provides an OAuth-backed internal workspace: account management, Zanzibar-style policy tuples, documents, issues, contacts, settings, audit logs, and archive backup.
 
 This document describes the implemented architecture in the current codebase. Planned integrations should live in separate roadmap or planning documents, not in current-state architecture docs.
 
@@ -101,7 +101,7 @@ apps/api/src/modules/
 |---|---|---|
 | `account` | OAuth login, sessions, current user, users, groups, TOTP. | [account.md](modules/account.md) |
 | `audit` | Persisted audit events + retention sweep. | [audit.md](modules/audit.md) |
-| `backup` | JSON backup export and import (admin + service-token surfaces). | [backup.md](modules/backup.md) |
+| `backup` | Archive (tar.gz) backup export jobs and staged imports (admin + service-token surfaces). | [backup.md](modules/backup.md) |
 | `contact` | Global shared contact directory with owner/viewer authorization, public/private visibility, and confidential field masking. | [contact.md](modules/contact.md) |
 | `cron` | In-process job scheduler: cron-driven actions with run history. | [cron.md](modules/cron.md) |
 | `document` | Documents, attachments, comments, shares; sub-type of `item`. | [document.md](modules/document.md) |
