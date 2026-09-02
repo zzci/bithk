@@ -3958,6 +3958,80 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/admin/webhooks": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List webhook subscriptions */
+        readonly get: operations["getAdminWebhooks"];
+        readonly put?: never;
+        /** Create a webhook subscription */
+        readonly post: operations["postAdminWebhooks"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/admin/webhooks/{id}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Get a webhook subscription */
+        readonly get: operations["getAdminWebhooksById"];
+        readonly put?: never;
+        readonly post?: never;
+        /** Delete a webhook subscription and its delivery log */
+        readonly delete: operations["deleteAdminWebhooksById"];
+        readonly options?: never;
+        readonly head?: never;
+        /** Update a webhook subscription */
+        readonly patch: operations["patchAdminWebhooksById"];
+        readonly trace?: never;
+    };
+    readonly "/admin/webhooks/{id}/test": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Queue a webhook.test delivery to the endpoint
+         * @description Answers 202 as soon as the delivery row exists; poll the deliveries log for the outcome.
+         */
+        readonly post: operations["postAdminWebhooksByIdTest"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/admin/webhooks/{id}/deliveries": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List a webhook's recent deliveries (newest first) */
+        readonly get: operations["getAdminWebhooksByIdDeliveries"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -34668,6 +34742,703 @@ export interface operations {
             };
             /** @description Relay rejected or unreachable */
             readonly 502: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly getAdminWebhooks: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly {
+                            readonly id: string;
+                            readonly name: string;
+                            readonly url: string;
+                            readonly events: readonly string[];
+                            readonly enabled: boolean;
+                            readonly hasSecret: boolean;
+                            readonly consecutiveFailures: number;
+                            readonly lastDeliveryAt: string | null;
+                            readonly lastDeliveryStatus: ("pending" | "success" | "failed") | null;
+                            readonly createdBy: string;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly postAdminWebhooks: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly name: string;
+                    readonly url: string;
+                    readonly secret?: string;
+                    readonly events: readonly string[];
+                    readonly enabled?: boolean;
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Created */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            readonly name: string;
+                            readonly url: string;
+                            readonly events: readonly string[];
+                            readonly enabled: boolean;
+                            readonly hasSecret: boolean;
+                            readonly consecutiveFailures: number;
+                            readonly lastDeliveryAt: string | null;
+                            readonly lastDeliveryStatus: ("pending" | "success" | "failed") | null;
+                            readonly createdBy: string;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description URL refused */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Name already used */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly getAdminWebhooksById: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            readonly name: string;
+                            readonly url: string;
+                            readonly events: readonly string[];
+                            readonly enabled: boolean;
+                            readonly hasSecret: boolean;
+                            readonly consecutiveFailures: number;
+                            readonly lastDeliveryAt: string | null;
+                            readonly lastDeliveryStatus: ("pending" | "success" | "failed") | null;
+                            readonly createdBy: string;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly deleteAdminWebhooksById: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: null;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly patchAdminWebhooksById: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly name?: string;
+                    readonly url?: string;
+                    readonly secret?: string | null;
+                    readonly events?: readonly string[];
+                    readonly enabled?: boolean;
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            readonly name: string;
+                            readonly url: string;
+                            readonly events: readonly string[];
+                            readonly enabled: boolean;
+                            readonly hasSecret: boolean;
+                            readonly consecutiveFailures: number;
+                            readonly lastDeliveryAt: string | null;
+                            readonly lastDeliveryStatus: ("pending" | "success" | "failed") | null;
+                            readonly createdBy: string;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description URL refused */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Name already used */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly postAdminWebhooksByIdTest: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Queued */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly deliveryId: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly getAdminWebhooksByIdDeliveries: {
+        readonly parameters: {
+            readonly query?: {
+                readonly page?: number;
+                readonly limit?: number;
+            };
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly {
+                            readonly id: string;
+                            readonly event: string;
+                            readonly eventId: string;
+                            readonly payload: string;
+                            /** @enum {string} */
+                            readonly status: "pending" | "success" | "failed";
+                            readonly attempts: number;
+                            readonly responseStatus: number | null;
+                            readonly error: string | null;
+                            readonly createdAt: string;
+                            readonly finishedAt: string | null;
+                        }[];
+                        readonly meta: {
+                            readonly total: number;
+                            readonly page: number;
+                            readonly limit: number;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Not found */
+            readonly 404: {
                 headers: {
                     readonly [name: string]: unknown;
                 };

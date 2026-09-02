@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 340 routes total.
+> 347 routes total.
 
 | Method | Path |
 |---|---|
@@ -57,6 +57,13 @@
 | PUT | `/api/admin/storage/config` |
 | GET | `/api/admin/storage/files` |
 | POST | `/api/admin/storage/sync-to-s3` |
+| GET | `/api/admin/webhooks` |
+| POST | `/api/admin/webhooks` |
+| DELETE | `/api/admin/webhooks/:id` |
+| GET | `/api/admin/webhooks/:id` |
+| PATCH | `/api/admin/webhooks/:id` |
+| GET | `/api/admin/webhooks/:id/deliveries` |
+| POST | `/api/admin/webhooks/:id/test` |
 | GET | `/api/audit` |
 | GET | `/api/audit/:id` |
 | GET | `/api/backup/modules` |

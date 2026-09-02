@@ -138,7 +138,7 @@ export interface ResolvedTarget {
   readonly pinned: boolean;
 }
 
-export async function resolveTarget(config: Config, rawUrl: string): Promise<ResolvedTarget> {
+export async function resolveTarget(config: Pick<Config, "HTTP_ACTION_ALLOW_PRIVATE">, rawUrl: string): Promise<ResolvedTarget> {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(rawUrl);

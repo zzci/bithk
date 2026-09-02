@@ -1,6 +1,6 @@
 # FEAT-060 - Webhook subscriptions with signed, retried deliveries
 
-- Status: In Progress (investigation; awaiting proposal approval)
+- Status: Completed (2026-09-01)
 - Plan: [PLAN-112](../plan/PLAN-112.md)
 - Owner: audit-remediation/session-2026-09-01
 - Created: 2026-09-01
@@ -46,3 +46,16 @@ schemas beyond the audit shape, an event catalogue endpoint.
   `POST :id/test`, assert the receiver got a signed payload and the delivery
   row reads `success`.
 - `bun run check` EXIT 0.
+
+## Notes
+
+- 2026-09-01: shipped — `webhooks` / `webhook_deliveries` (migration
+  `0001_webhooks`, backup contribution `notification`), `webhook.service.ts`
+  (pattern matching, HMAC signing, URL policy via the cron SSRF gate, CRUD),
+  `webhook.dispatcher.ts` (per-webhook serial lanes, 3 attempts with 1 s /
+  10 s backoff, `redirect: "manual"`, prune to 200, consecutive-failure
+  counter), `/admin/webhooks` CRUD + `:id/test` + `:id/deliveries`; the
+  Webhooks tab rebuilt on `shared/lib/api/webhooks.ts`. Unit deliveries run
+  against a loopback `Bun.serve` receiver; e2e `notification/webhooks.test.ts`
+  drives a signed test ping through the live API (`HTTP_ACTION_ALLOW_PRIVATE`
+  set for the e2e API). `bun run check` EXIT 0.

@@ -86,6 +86,41 @@ Immutable audit log records.
 `detail` is nullable (use when no structured payload makes sense); every
 other column is `NOT NULL`.
 
+### Notification
+
+#### `webhooks`
+Webhook subscriptions (FEAT-060). See
+[`modules/notification.md`](../modules/notification.md#webhooks).
+
+| Column | Notes |
+| --- | --- |
+| `id` | **nanoid** (8 chars). |
+| `name` | Required; unique via `idx_webhooks_name`. |
+| `url` | http(s) endpoint; SSRF-gated on write and per delivery. |
+| `secret` | Nullable HMAC key; never returned over the wire. |
+| `events` | JSON `string[]` of audit-action patterns (`*`, `issue.*`, `share.created`). |
+| `enabled` | Integer boolean; indexed. |
+| `consecutive_failures` | Integer, default 0; reset on the next successful delivery. |
+| `last_delivery_at`, `last_delivery_status` | Rolling health shown in the admin list. |
+| `created_by` | Soft reference to the creating admin. |
+| `created_at`, `updated_at` | ISO timestamps. |
+
+#### `webhook_deliveries`
+One row per delivery attempt chain; pruned to the latest 200 per webhook.
+Cascade-deletes with the subscription.
+
+| Column | Notes |
+| --- | --- |
+| `id` | **ULID**; also sent as `X-Webhook-Delivery`. |
+| `webhook_id` | FK → `webhooks.id ON DELETE CASCADE`. |
+| `event`, `event_id` | Audit action and audit event id (`test-…` for admin pings). |
+| `payload` | The JSON body exactly as posted. |
+| `status` | `pending` / `success` / `failed`. |
+| `attempts`, `response_status`, `error` | Outcome of the last attempt. |
+| `created_at`, `finished_at` | ISO timestamps. |
+
+Indexes: `(webhook_id, created_at)`, `(status)`.
+
 ### Cron
 
 #### `cron_jobs`

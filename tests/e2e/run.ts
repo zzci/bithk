@@ -150,6 +150,9 @@ function spawnApi(dataDir: string): Subprocess {
       // The size-cap e2e tests send 10 MB + 1 byte; pin the cap so they stay
       // meaningful regardless of the shipped default (200 MB since FIX-047).
       MAX_UPLOAD_MB: "10",
+      // The webhook e2e spec posts to a receiver on loopback; the default SSRF
+      // gate would refuse it (FEAT-060).
+      HTTP_ACTION_ALLOW_PRIVATE: "true",
     },
     stdout: debug ? "inherit" : "pipe",
     stderr: debug ? "inherit" : "pipe",

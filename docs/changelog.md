@@ -13,6 +13,16 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Webhook subscriptions (FEAT-060). Admins register endpoints
+  (`/api/admin/webhooks`: name, http(s) URL, optional signing secret, audit
+  action patterns such as `issue.*`); every matching audit event is POSTed as
+  JSON with `X-Webhook-Event` / `X-Webhook-Delivery` / `X-Webhook-Timestamp`
+  and, with a secret, an `X-Webhook-Signature: sha256=HMAC(secret,
+  "<timestamp>.<body>")`. Deliveries run off the request path with three
+  attempts, the cron `http-request` SSRF gate and timeout, no redirect
+  following, a per-webhook delivery log (latest 200) and a test ping. The
+  admin Settings › Webhooks tab is rebuilt on the new API. Tables
+  `webhooks` / `webhook_deliveries` (migration `0001_webhooks`).
 - SMTP email delivery (FEAT-059). The admin Settings › SMTP tab's `smtp.*`
   settings now drive a real transport (nodemailer): `POST /api/admin/smtp/test`
   mails the calling admin, and two notification emails ride the new audit

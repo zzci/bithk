@@ -360,6 +360,13 @@ All settings routes require admin access.
 | Method | Path                                       | Access        | Description                                                                                            |
 | ------ | ------------------------------------------ | ------------- | ------------------------------------------------------------------------------------------------------ |
 | POST   | `/api/admin/smtp/test`                     | Admin         | Sends a test email to the calling admin through the `smtp.*` settings (`409` when disabled / incomplete, `502` when the relay fails). See [`modules/notification.md`](../modules/notification.md). |
+| GET    | `/api/admin/webhooks`                      | Admin         | Lists webhook subscriptions (`hasSecret`, never the secret).                                              |
+| POST   | `/api/admin/webhooks`                      | Admin         | Creates a subscription `{ name, url, secret?, events, enabled? }`; `400 INVALID_WEBHOOK_URL`, `409` on a used name. |
+| GET    | `/api/admin/webhooks/:id`                  | Admin         | One subscription.                                                                                       |
+| PATCH  | `/api/admin/webhooks/:id`                  | Admin         | Partial update; `secret: null` clears the signing key.                                                  |
+| DELETE | `/api/admin/webhooks/:id`                  | Admin         | Deletes the subscription and its delivery log.                                                          |
+| POST   | `/api/admin/webhooks/:id/test`             | Admin         | Queues a `webhook.test` delivery → `202 { deliveryId }`.                                                |
+| GET    | `/api/admin/webhooks/:id/deliveries`       | Admin         | Paginated delivery log, newest first.                                                                   |
 
 ## Audit
 

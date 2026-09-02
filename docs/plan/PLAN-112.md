@@ -1,6 +1,6 @@
 # PLAN-112 - SMTP email delivery and webhook subscriptions
 
-- Status: Implementing
+- Status: Completed
 - Approved: 2026-09-01
 - Task: [FEAT-059](../task/FEAT-059.md), [FEAT-060](../task/FEAT-060.md)
 - Campaign: local
@@ -143,4 +143,7 @@ After PLAN-111 lands. One commit per task, each RED -> GREEN -> IMPROVE with
 
 - 2026-09-01: FEAT-059 landed (see the task notes). nodemailer ran on Bun
   without any workaround — the in-process `smtp-server` round-trip passed on
-  the first run, so the fallback client in Risks is not needed. FEAT-060 next.
+  the first run, so the fallback client in Risks is not needed.
+- 2026-09-01: FEAT-060 landed (see the task notes). Plan complete; the
+  legacy `webhook.*` settings rows written by the old tab are left in place
+  as planned.

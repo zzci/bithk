@@ -27,8 +27,8 @@ export const settingKeys = {
 
 // ── Plain request functions ──
 //
-// Used by the imperative admin settings tabs (SMTP toggle, webhook CRUD)
-// that sequence several writes and refetch explicitly.
+// Used by the imperative admin settings tabs (SMTP toggles) that sequence
+// several writes and refetch explicitly.
 
 export async function putSetting(key: string, value: string): Promise<void> {
   await http(`/settings/${encodeURIComponent(key)}`, {
