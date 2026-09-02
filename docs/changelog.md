@@ -11,6 +11,10 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+_Nothing yet._
+
+## v0.4.0 — 2026-09-02
+
 ### Added
 
 - One-shot fold of a pre-PLAN-108 database into the section model
