@@ -3,8 +3,8 @@ import { isSpoofableProxyConfig } from "@/shared/lib/client-ip";
 import { ConfigError } from "./errors";
 
 /**
- * Values left in a fork that copied `examples/compose/.env.example` or
- * `dex.yaml` verbatim. Refusing to boot in production with any of
+ * Values left in a fork that copied the `.env.example` dev-IdP block or the
+ * e2e `tests/e2e/dex/config.yaml` verbatim. Refusing to boot in production with any of
  * these in place catches the most common "deployed the example and
  * forgot to rotate" mistake.
  *

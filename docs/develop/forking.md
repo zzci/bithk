@@ -42,9 +42,7 @@ arguments is idempotent.
 
 The rebrand helper covers:
 
-- `.env.example` and `.env` (top-level)
-- `examples/compose/.env.example`
-- `examples/compose/compose.yml` (the `${APP_NAME:-app}` / `${OAUTH_*:-...}` defaults)
+- `.env.example` and `.env` (top-level, including the bundled-dex block)
 - `Dockerfile` runtime defaults and lode data paths (structural paths like `/app/data` and `/srv/lode` are left alone)
 - Top-level `package.json` plus every `apps/*/package.json` and `packages/*/package.json`
 
@@ -64,7 +62,7 @@ The rebrand helper covers:
 | Document title shown in tabs and pages | `apps/web/src/shared/hooks/use-page-title.ts` |
 | Login screen heading | `apps/web/src/app/routes/login.tsx` |
 | TOTP issuer (shown in authenticator apps) | `apps/api/src/modules/account/users/totp.service.ts` |
-| Default SMTP "from name" placeholder | `apps/web/src/app/routes/_app/admin/settings.lazy.tsx` |
+| Default SMTP "from name" placeholder | `apps/web/src/app/routes/_app/admin/-settings-smtp.tsx` |
 
 The frontend reads both via the single import `@/shared/lib/branding` (`APP_NAME`, `APP_DISPLAY_NAME`); the API reads them via `Bun.env.APP_NAME` / `Bun.env.APP_DISPLAY_NAME` and the validated `Config`.
 
@@ -85,19 +83,18 @@ These items are intentionally not env-driven; edit them once when you fork:
 | Container source-revision label | `--build-arg BUILD_COMMIT=$(git rev-parse --short HEAD)` (`.git` is excluded from the build context, so the build cannot resolve it on its own) |
 | OAuth client id/secret in your IdP | `.env` (`OAUTH_*`) |
 
-#### Reference compose stack (`examples/compose/`)
+#### Bundled dev IdP defaults
 
-The bundled docker-compose stack ships with **demo credentials** that
-**must** be rotated before any non-local deploy:
+The dev / e2e dex fixtures ship with **demo credentials** that **must** not
+reach a deployment (production refuses the sentinel values at boot):
 
 | Surface | Default | Action |
 |---|---|---|
-| `OAUTH_CLIENT_ID` | `app` | Whatever your IdP registers. |
-| `OAUTH_CLIENT_SECRET` | `app-secret` | Generate a real secret; **production refuses to boot with this value**. |
-| `DEFAULT_ADMIN` | `admin@example.com` | Your real first-admin email. |
-| Dex static users | `admin@example.com` / `user@example.com` (bcrypt of `"admin"`) | Replace `staticPasswords` in `dex.yaml` with your IdP connectors. |
-| Dex image tag | `dexidp/dex:v2.43.1` (pinned) | Bump deliberately when the upstream changelog is vetted. |
-| App image name | `${APP_NAME:-app}:local` | The image you actually publish. |
+| `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` | `.env.example` dex block (`bit` / `bit-secret`); e2e fixture `tests/e2e/dex/config.yaml` (`app` / `app-secret`) | Register a real client in your IdP; **production refuses `app` / `app-secret`**. |
+| `DEFAULT_ADMIN` | `admin@example.com` | Your real first-admin email; production refuses the example value. |
+| Dex static users | `admin@example.com` / `user@example.com` (bcrypt of `"admin"`) in `tests/e2e/dex/config.yaml`; `bun run dev:dex` generates its own config from `.env` | e2e / dev only — never reuse them. |
+| Dex binary | `DEX_VERSION` in `tests/e2e/scripts/install-dex.sh` (also used by `bun run dev:dex`) | Bump deliberately when the upstream changelog is vetted. |
+| Container image name | `bit:latest` in `docker-compose.yml` | The image you actually publish. |
 
 ### Verification script
 
@@ -107,7 +104,7 @@ After rebranding, run (substitute `<OLD_NAME>` with your previous `APP_NAME` and
 rg -i \
   --glob '!node_modules' --glob '!dist' --glob '!.git' \
   -e '<OLD_NAME>' -e '<OLD_DISPLAY>' \
-  apps/ packages/ scripts/ examples/ Dockerfile
+  apps/ packages/ scripts/ Dockerfile
 ```
 
 `<OLD_NAME>` and `<OLD_DISPLAY>` are placeholders — replace them with the actual literals before running. Anything that comes back is something the template missed.

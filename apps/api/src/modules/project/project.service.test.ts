@@ -24,6 +24,7 @@ import {
   hasCapability,
   isMember,
   isProjectVersionConflict,
+  listMemberProjects,
   listMembers,
   listProjectChildren,
   listProjects,
@@ -35,7 +36,7 @@ import {
   updateMember,
   updateProject,
 } from "./project.service";
-import { projectRoles } from "./schema";
+import { projectRoles, projects } from "./schema";
 // Side-effect imports: the soft-delete cascade runs through each mounted
 // section's `cascadeDelete` hook, and a section registers itself from its own
 // barrel (ADR-009). Without these the project's issues / procurements would
@@ -880,5 +881,32 @@ describe("project hierarchy", () => {
     expect(after).toBeDefined();
     expect(after!.deletedAt).toBeNull();
     expect(after!.parentId).toBeNull();
+  });
+});
+
+// CHORE-012: drive search and the aggregated trash listing resolved a user's
+// projects through `listProjects(..., { limit: 100 })`, silently truncating
+// members of more than 100 projects. `listMemberProjects` is the uncapped,
+// internal-id view both call sites use.
+describe("listMemberProjects", () => {
+  test("returns every membership past the old 100-row page cap, newest first, without soft-deleted projects", async () => {
+    const owner = await createVirtualUser(db, { username: "member-fanout", name: "Fanout" });
+    const other = await createVirtualUser(db, { username: "member-other", name: "Other" });
+    const created: string[] = [];
+    for (let i = 0; i < 101; i++) {
+      const p = await createProject(db, { name: `Fanout ${String(i).padStart(3, "0")}`, creatorId: owner!.id });
+      created.push(p.id);
+    }
+    await createProject(db, { name: "Not mine", creatorId: other!.id });
+    const trashed = await createProject(db, { name: "Trashed", creatorId: owner!.id });
+    await db.update(projects).set({ deletedAt: new Date().toISOString() }).where(eq(projects.id, trashed.id)).run();
+
+    const mine = await listMemberProjects(db, owner!.id);
+    expect(mine).toHaveLength(101);
+    expect(new Set(mine.map(p => p.id))).toEqual(new Set(created));
+    const ids = mine.map(p => p.id);
+    expect(ids).toEqual([...ids].sort().reverse());
+    expect(mine.find(p => p.name === "Not mine")).toBeUndefined();
+    expect(mine.find(p => p.name === "Trashed")).toBeUndefined();
   });
 });

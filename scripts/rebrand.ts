@@ -119,48 +119,6 @@ function rewriteEnvFile(path: string): boolean {
 }
 rewriteEnvFile(".env.example");
 rewriteEnvFile(".env");
-rewriteEnvFile("examples/compose/.env.example");
-
-// ─── 1b. examples/compose/compose.yml ───
-// The reference docker-compose stack hardcodes the slug as the default
-// for `${APP_NAME:-app}:local` image name. Rewriting the default keeps
-// `docker compose up` ergonomic for a fresh fork even when the operator
-// hasn't yet copied .env.example to .env. The other `${APP_NAME:-...}`
-// usages flow from the same default so a single replacement suffices.
-function rewriteComposeFile(): void {
-  if (APP_NAME === undefined)
-    return;
-  const path = "examples/compose/compose.yml";
-  let text: string;
-  try {
-    text = readFileSync(resolve(ROOT, path), "utf-8");
-  }
-  catch {
-    return;
-  }
-  // Replace every `${VAR:-app}` default whose VAR is one of the
-  // app-slug-bearing knobs. Restrict to the explicit list so we don't
-  // accidentally touch unrelated `:-app` defaults that might appear in
-  // future additions to the compose file.
-  const next = text.replace(
-    /\$\{(APP_NAME|APP_DISPLAY_NAME|OAUTH_CLIENT_ID|OAUTH_CLIENT_SECRET):-([^}]+)\}/g,
-    (match, key: string, def: string) => {
-      let nextDef = def;
-      if (key === "APP_NAME" && def === "app")
-        nextDef = APP_NAME;
-      else if (key === "APP_DISPLAY_NAME" && def === "App" && APP_DISPLAY !== undefined)
-        nextDef = APP_DISPLAY;
-      else if (key === "OAUTH_CLIENT_ID" && def === "app")
-        nextDef = APP_NAME;
-      else if (key === "OAUTH_CLIENT_SECRET" && def === "app-secret")
-        nextDef = `${APP_NAME}-secret`;
-      return nextDef === def ? match : `\${${key}:-${nextDef}}`;
-    },
-  );
-  if (next !== text)
-    write(path, next, "rewrite compose APP_NAME / OAUTH_* defaults");
-}
-rewriteComposeFile();
 
 // ─── 1c. Dockerfile ───
 // Only rewrite ENV / LABEL / HEALTHCHECK lines whose literal value is

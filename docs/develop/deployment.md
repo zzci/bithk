@@ -127,17 +127,21 @@ readinessProbe:
   # 200 = ready (db reachable); 503 = drain traffic
 ```
 
-## Reference compose stack (local dev / smoke test)
+## Reference compose stack (local test)
 
-`examples/compose/` holds a reference docker-compose stack — app + a bundled `dex` IdP + a Caddy proxy — meant for local-development and smoke-test use. It is **not** a production deployable: dex ships with hardcoded test users, the proxy terminates plain HTTP, and the app runs against a self-signed IdP issuer. Treat it as the starting point you adapt for production: real IdP, real TLS, real secrets store.
+The root [`docker-compose.yml`](../../docker-compose.yml) runs the lode runtime image as a local test stack on the external `traefik` network. The repository bundles no IdP or proxy container; the stack expects three untracked inputs next to it:
+
+- `.env.docker` — the app env (start from `.env.example`; `APP_NAME`, `APP_DISPLAY_NAME`, `APP_URL`, `CORS_ORIGIN` and either the `OAUTH_*` set or single-user mode).
+- `data-docker/lode.toml` — copy [`deploy/lode.toml`](../../deploy/lode.toml) and edit `[update]` / `[env]`; `data-docker/` is mounted as `/srv/lode`.
+- `.secret/docker-admin.hash` — a single-user password hash mounted read-only at `/app/secret/admin.hash` (see `SINGLE_USER_PASSWORD_HASH_FILE`).
 
 ```bash
-cd examples/compose
-cp .env.example .env                # populate APP_NAME, secrets, APP_URL, etc.
+mkdir -p data-docker && cp deploy/lode.toml data-docker/lode.toml
 docker compose up --build
+# reset: docker compose down && rm -rf data-docker
 ```
 
-Required env (in `.env` next to the compose file): `APP_NAME`, `APP_DISPLAY_NAME`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `APP_URL`. Strip the `dex` service and replace it with your real IdP for any non-toy deploy.
+It is **not** a production deployable: it runs as root so the bind mount stays writable and terminates no TLS. For a local IdP use `bun run dev:dex` (dev only) or single-user mode; any non-toy deploy needs your real IdP, TLS and secrets store.
 
 ## Reverse proxy
 
@@ -171,7 +175,7 @@ your-domain.com {
 }
 ```
 
-The reference `examples/compose/Caddyfile` ships with plain `:80` for local smoke-testing — replace the site block with the form above (and forward 80/443 from the host) before pointing it at a real domain.
+The repository ships no proxy configuration; start from the site block above (and forward 80/443 from the host) when pointing a real domain at the stack.
 
 ## Trust Proxy
 
@@ -224,7 +228,7 @@ TRUSTED_PROXY_IPS=10.0.0.0/8,172.16.0.0/12
 
 ## Production compose addendum
 
-The reference stack under `examples/compose/` is local-dev grade. For a production deployment, layer the items below on top of it (or maintain a separate `compose.prod.yml`).
+The root `docker-compose.yml` is local-test grade. For a production deployment, layer the items below on top of it (or maintain a separate `compose.prod.yml`).
 
 ### Secrets
 
@@ -265,8 +269,9 @@ services:
       timeout: 5s
       start_period: 15s
       retries: 3
+    # Only when an IdP container runs in the same stack.
     depends_on:
-      dex:
+      idp:
         condition: service_healthy
 ```
 
@@ -332,9 +337,8 @@ for its process lifetime; the `SIGHUP` handler in
 }
 ```
 
-A ready-to-drop example lives at
-[`examples/logrotate.d/app`](../../examples/logrotate.d/app); copy it into
-`/etc/logrotate.d/app` and adjust paths/user if needed.
+Copy the stanza above into `/etc/logrotate.d/app` and adjust paths/user if
+needed.
 
 ## Operations runbook
 

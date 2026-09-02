@@ -1,7 +1,7 @@
 import type { DriveOwner } from "./drive.service";
 import type { AppDatabase } from "@/db";
 import { registerBackupContribution } from "@/modules/backup/registry";
-import { listProjects } from "@/modules/project/project.service";
+import { listMemberProjects } from "@/modules/project/project.service";
 import { registerProjectSection } from "@/modules/project/section.registry";
 import { registerSearchSource } from "@/modules/search/search.registry";
 import { driveBackupContribution } from "./drive.backup";
@@ -36,14 +36,14 @@ registerProjectSection({
  * we keep one uniform resolution path rather than enumerating all drives).
  */
 async function resolveDriveOwners(db: AppDatabase, userId: string): Promise<readonly DriveOwner[]> {
-  const [dirs, projectsResult] = await Promise.all([
+  const [dirs, memberProjects] = await Promise.all([
     listTeamDirectories(db, userId),
-    listProjects(db, { memberUserId: userId, limit: 100 }),
+    listMemberProjects(db, userId),
   ]);
   return [
     { ownerType: "user", ownerId: userId },
     ...dirs.map(d => ({ ownerType: "team_directory", ownerId: d.id }) as const),
-    ...projectsResult.data.map(p => ({ ownerType: "project", ownerId: p.id }) as const),
+    ...memberProjects.map(p => ({ ownerType: "project", ownerId: p.id }) as const),
   ];
 }
 

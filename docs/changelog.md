@@ -314,6 +314,15 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Fixed
 
+- Drive search and the aggregated trash view no longer cap a user's projects
+  at 100 (CHORE-012): both enumerate memberships through the new uncapped
+  `listMemberProjects` helper, which also hands drive search the internal
+  project ids it needs (the previous call returned external short ids, so
+  project files never matched). The docs now describe the real
+  `docker-compose.yml` / `deploy/lode.toml` test stack instead of the
+  removed `examples/compose/`, and the web coverage floor was raised to the
+  measured values.
+
 - The server request-body cap now follows the larger of `MAX_UPLOAD_MB` and
   `BACKUP_IMPORT_MAX_ARCHIVE_BYTES` (FIX-074). It was derived from the
   per-file upload cap alone, so any backup archive or blobs.tar.gz above about

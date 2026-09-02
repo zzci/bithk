@@ -495,6 +495,26 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
   return { data, total };
 }
 
+/**
+ * Every non-deleted project `userId` is a member of — internal ids and names
+ * only, newest first, NO page cap (CHORE-012). Drive search and the
+ * aggregated trash listing enumerate a user's spaces through this instead of
+ * `listProjects({ memberUserId, limit: 100 })`, which truncated members of
+ * more than 100 projects and handed back external short ids.
+ */
+export async function listMemberProjects(
+  db: AppDatabase,
+  userId: string,
+): Promise<readonly { readonly id: string; readonly name: string }[]> {
+  return db
+    .select({ id: projects.id, name: projects.name })
+    .from(projects)
+    .innerJoin(projectMembers, eq(projectMembers.projectId, projects.id))
+    .where(and(eq(projectMembers.userId, userId), isNull(projects.deletedAt)))
+    .orderBy(desc(projects.id))
+    .all();
+}
+
 export interface UpdateProjectInput {
   readonly name?: string | undefined;
   readonly status?: ProjectStatus | undefined;

@@ -7,7 +7,7 @@ import { z } from "zod";
 import { auditFromCtx } from "@/modules/audit/audit.context";
 import { parseThumbnailWidth } from "@/modules/file";
 import { policyContext } from "@/modules/policy";
-import { hasCapability, isMember, listProjects, resolveProjectId } from "@/modules/project/project.service";
+import { hasCapability, isMember, listMemberProjects, resolveProjectId } from "@/modules/project/project.service";
 import { hasSection } from "@/modules/project/section.service";
 import { AppError, ForbiddenError } from "@/shared/lib/errors";
 import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
@@ -330,18 +330,14 @@ export function driveRoutes() {
       // Same visibility resolution as drive search (personal + member team
       // directories + member projects), tightened to `files.view` on projects
       // so capability-less roles (Guest) cannot enumerate a project's trash.
-      const [dirs, projectsResult] = await Promise.all([
+      const [dirs, memberProjects] = await Promise.all([
         listTeamDirectories(db, user.id),
-        listProjects(db, { memberUserId: user.id, limit: 100 }),
+        listMemberProjects(db, user.id),
       ]);
       const projects: { id: string; name: string }[] = [];
-      for (const project of projectsResult.data) {
-        // ProjectView.id is the external shortId; drive owners store the ULID.
-        const projectId = await resolveProjectId(db, project.id);
-        if (!projectId)
-          continue;
-        if (user.role === "admin" || await hasCapability(db, projectId, user.id, "files.view"))
-          projects.push({ id: projectId, name: project.name });
+      for (const project of memberProjects) {
+        if (user.role === "admin" || await hasCapability(db, project.id, user.id, "files.view"))
+          projects.push({ id: project.id, name: project.name });
       }
 
       const owners: DriveOwner[] = [

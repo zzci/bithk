@@ -91,7 +91,7 @@ Treat each token like an OAuth client secret: store in your secrets manager, nev
 ## Log handling
 
 - Container deployments: keep `LOG_TO_STDOUT=true` (the Dockerfile default). Logs go to docker / journald / k8s and survive container churn. No on-host rotation needed.
-- Bare-metal deployments: write to `LOG_FILE` and rotate externally. The example config at `examples/logrotate.d/app` ships a daily rotation with 14-day retention. The `postrotate` hook sends `SIGHUP`; the API responds by reopening the log fd in place (`apps/api/src/index.ts`'s SIGHUP handler), so the next write goes to the freshly-rotated file without process restart.
+- Bare-metal deployments: write to `LOG_FILE` and rotate externally. The logrotate stanza in [`deployment.md`](deployment.md#logging) ships a daily rotation with 14-day retention. The `postrotate` hook sends `SIGHUP`; the API responds by reopening the log fd in place (`apps/api/src/index.ts`'s SIGHUP handler), so the next write goes to the freshly-rotated file without process restart.
 
 ---
 

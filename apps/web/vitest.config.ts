@@ -41,14 +41,13 @@ export default mergeConfig(
         // Thresholds are percentages (0-100). Floors track the current
         // suite with a small headroom so routine churn doesn't trip the
         // gate — raise as coverage improves, never lower. Current actuals
-        // (2026-06, after FIX-027 added pure-logic suites — tag-utils,
-        // status-colors, errors, use-debounce):
-        // lines ~42.2, statements ~42.2, functions ~42.7, branches ~36.5.
+        // (2026-09-01, CHORE-012): lines ~52.5, statements ~52.5,
+        // functions ~51.7, branches ~46.7.
         thresholds: {
-          lines: 38,
-          functions: 38,
-          statements: 38,
-          branches: 33,
+          lines: 48,
+          functions: 47,
+          statements: 48,
+          branches: 42,
         },
       },
     },
