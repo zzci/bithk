@@ -39,3 +39,4 @@ playwright-report/
 
 # Root-level process core dump (anchored; never match nested paths)
 /core
+.tmp/

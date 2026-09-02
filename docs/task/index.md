@@ -218,6 +218,7 @@
 | [DATA-002](DATA-002.md) | Reseed for the section model: every mounted surface needs data | - | Completed | 2026-08-29 |
 | [TEST-002](TEST-002.md) | Stale and unreachable end-to-end specs | - | Completed | 2026-08-29 |
 | [UI-033](UI-033.md) | Remove the sidebar "Ships" entry | [PLAN-108](../plan/PLAN-108.md) | Completed | 2026-08-31 |
+| [DATA-003](DATA-003.md) | Fold the production database into the section model | [PLAN-108](../plan/PLAN-108.md) | In Progress | 2026-09-01 |
 | [CHORE-009](CHORE-009.md) | Dependency refresh: 14 minor bumps and 5 majors | - | Completed | 2026-08-30 |
 | [CHORE-010](CHORE-010.md) | Dependency follow-ups left by CHORE-009 | - | Completed | 2026-08-30 |
 | [CHORE-008](CHORE-008.md) | Bring the repository root under typecheck | - | Completed | 2026-08-28 |
@@ -229,3 +230,4 @@
 | [FEAT-059](FEAT-059.md) | SMTP email delivery: transport, test send, and notification emails | [PLAN-112](../plan/PLAN-112.md) | Completed | 2026-09-01 |
 | [FEAT-060](FEAT-060.md) | Webhook subscriptions with signed, retried deliveries | [PLAN-112](../plan/PLAN-112.md) | Completed | 2026-09-01 |
 | [TEST-003](TEST-003.md) | e2e specs still target the pre-PLAN-108 ship and module surface | [PLAN-111](../plan/PLAN-111.md) | Completed | 2026-09-01 |
+| [CHORE-013](CHORE-013.md) | Delete the v1 JSON backup services and port their test harness to v2 | - | In Progress | 2026-09-02 |
