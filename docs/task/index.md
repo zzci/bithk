@@ -230,4 +230,4 @@
 | [FEAT-059](FEAT-059.md) | SMTP email delivery: transport, test send, and notification emails | [PLAN-112](../plan/PLAN-112.md) | Completed | 2026-09-01 |
 | [FEAT-060](FEAT-060.md) | Webhook subscriptions with signed, retried deliveries | [PLAN-112](../plan/PLAN-112.md) | Completed | 2026-09-01 |
 | [TEST-003](TEST-003.md) | e2e specs still target the pre-PLAN-108 ship and module surface | [PLAN-111](../plan/PLAN-111.md) | Completed | 2026-09-01 |
-| [CHORE-013](CHORE-013.md) | Delete the v1 JSON backup services and port their test harness to v2 | - | In Progress | 2026-09-02 |
+| [CHORE-013](CHORE-013.md) | Delete the v1 JSON backup services and port their test harness to v2 | - | Completed | 2026-09-02 |

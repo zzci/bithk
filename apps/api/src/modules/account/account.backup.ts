@@ -9,7 +9,7 @@ import { userPreferences, users } from "@/modules/account/users/schema";
 // virtual-user automation) authenticated after a restore. `apiTokens` is listed
 // after `users` because each token row references a user (FK restore order).
 // `name` is the stable identifier in backup files; renaming it is a
-// breaking change (bump file `version` in export.service.ts).
+// breaking change (bump `BACKUP_FORMAT_VERSION` in backup/archive.service.ts).
 export const accountBackupContribution: BackupContribution = {
   name: "users",
   tables: [users, groups, userPreferences, apiTokens],

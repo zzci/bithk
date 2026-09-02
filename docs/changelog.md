@@ -330,7 +330,8 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   `POST /api/backup/v2/exports` (+ `exports-via-token` for `SERVICE_TOKEN_BACKUP`
   tooling) and `POST /api/backup/v2/imports` + `.../apply`. Existing `.json`
   dumps can only be read by a pre-FIX-072 build. `GET /api/backup/modules` is
-  unchanged.
+  unchanged. CHORE-013 then deleted the v1 exporter / importer services and
+  moved the module backup tests onto the v2 archive services.
 
 ### Fixed
 

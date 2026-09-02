@@ -12,9 +12,10 @@ resolution. One format is served:
   without the exact-journal schema gate); `mode: "replace"` answers
   `400 REPLACE_MODE_REMOVED`.
 - **v1** — the single-request JSON export / delete-then-insert import routes
-  were retired in FIX-072 (see [v1 route removal](#v1-json-route-removal)).
-  `export.service.ts` / the v1 half of `restore.service.ts` survive only as
-  the round-trip harness of the module backup tests.
+  were retired in FIX-072 (see [v1 route removal](#v1-json-route-removal))
+  and the services behind them were deleted in CHORE-013; the module backup
+  tests round-trip through the v2 archive services
+  (`shared/test/backup-roundtrip.ts`).
 
 ## Format version 3 — a one-time epoch reset (PLAN-108)
 
@@ -109,8 +110,7 @@ apps/api/src/modules/backup/
   import-v2.routes.ts     # v2 upload/status/apply/delete
   blob-restore.ts/.routes.ts  # legacy blobs-only archive restore + quarantine rescan
   export.routes.ts        # GET /backup/modules (the v1 export routes are gone)
-  export.service.ts       # v1 JSON dump writer — test harness only (FIX-072)
-  restore.service.ts      # assertSane / caps / reconcileRestoredFiles (live) + v1 importer (harness only)
+  restore.service.ts      # assertSane / assertIdShape / row caps / reconcileRestoredFiles
   index.ts
 ```
 

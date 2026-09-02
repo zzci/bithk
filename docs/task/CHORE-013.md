@@ -1,6 +1,6 @@
 # CHORE-013 - Delete the v1 JSON backup services and port their test harness to v2
 
-- Status: In Progress
+- Status: Completed (2026-09-02)
 - Plan: -
 - Owner: audit-remediation/session-2026-09-01
 - Created: 2026-09-02
@@ -31,3 +31,13 @@ dead code.
 - `grep -rn "streamJsonBackup\|importJsonBackup\|validateBackupData"` finds
   nothing outside the changelog.
 - `bun run check` EXIT 0, `bun run test:e2e` green, GitHub CI green.
+
+## Notes
+
+- 2026-09-02: `shared/test/backup-roundtrip.ts` (writeArchiveV2 → prepareImport →
+  startImportApply) replaces the v1 harness in the contact / procurement /
+  ship / project backup tests; the archive fidelity test compares NDJSON to
+  the live rows; the reconcile test seeds `files` rows directly.
+  `export.service.ts` deleted; `restore.service.ts` keeps only `assertSane`,
+  `assertIdShape`, the row caps and `reconcileRestoredFiles`. `bun run check`
+  EXIT 0 (api 2241 pass, 93.06 % lines).

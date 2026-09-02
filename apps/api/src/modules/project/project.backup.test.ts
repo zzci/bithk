@@ -7,12 +7,11 @@ import { eq, getTableName } from "drizzle-orm";
 import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
 import { users } from "@/modules/account/users/schema";
-import { streamJsonBackup } from "@/modules/backup/export.service";
 import { __resetBackupRegistryForTests, getDataModules, getTablesForModules, registerBackupContribution } from "@/modules/backup/registry";
-import { importJsonBackup, validateBackupData } from "@/modules/backup/restore.service";
 import { __resetSearchRegistryForTests, getSearchSources, registerSearchSource } from "@/modules/search/search.registry";
 import { shipBackupContribution } from "@/modules/ship/ship.backup";
 import { tagBackupContribution } from "@/modules/tag/tag.backup";
+import { roundTripBackupV2 } from "@/shared/test/backup-roundtrip";
 import { projectBackupContribution } from "./project.backup";
 import { listRoles } from "./project.roles";
 import { createProject } from "./project.service";
@@ -107,8 +106,7 @@ describe("project backup contribution", () => {
     const seededRoles = await listRoles(sourceDb, project.id);
     const seededMembers = await sourceDb.select().from(projectMembers).where(eq(projectMembers.projectId, project.id)).all();
 
-    const { modules, body } = streamJsonBackup(sourceDb, ["projects"]);
-    const parsed = validateBackupData(JSON.parse(await readStreamToString(body)));
+    const { modules, tables, result } = await roundTripBackupV2(sourceDb, restoredDb, ["projects"], dir);
     // Dependencies resolve ahead of `projects` so FK inserts stay valid.
     expect(modules).toContain("users");
     expect(modules).toContain("tags");
@@ -116,16 +114,15 @@ describe("project backup contribution", () => {
     // The projects ↔ ships cycle is gone: ships depends on projects, never the
     // other way round, so a projects-only export never drags ships in.
     expect(modules).not.toContain("ships");
-    expect(parsed.tables.projects).toHaveLength(1);
+    expect(tables.projects).toHaveLength(1);
     // The exported table set is exactly what the resolved contributions
     // declare — the assertion above pins this module's list, so a table that
     // moved to another module (PLAN-108 §3) cannot reappear here unnoticed.
-    expect(Object.keys(parsed.tables).sort()).toEqual(
+    expect(Object.keys(tables).sort()).toEqual(
       getTablesForModules(modules).map(table => getTableName(table)).sort(),
     );
 
-    const result = await importJsonBackup(restoredDb, parsed);
-    expect(result.rowsImported).toBeGreaterThanOrEqual(1);
+    expect(result.totals.inserted).toBeGreaterThanOrEqual(1);
 
     const restoredProjects = await restoredDb
       .select({ id: projects.id, name: projects.name, creatorId: projects.creatorId })
@@ -178,27 +175,10 @@ describe("project backup contribution", () => {
     expect(plainKeys.length).toBeGreaterThan(0);
     expect(extendedKeys).toEqual([...plainKeys, "ship-profile"]);
 
-    const { body } = streamJsonBackup(sourceDb, ["projects"]);
-    const parsed = validateBackupData(JSON.parse(await readStreamToString(body)));
-    expect(parsed.tables.project_sections).toHaveLength(sourceRows.length);
-
-    await importJsonBackup(restoredDb, parsed);
+    const { tables } = await roundTripBackupV2(sourceDb, restoredDb, ["projects"], dir);
+    expect(tables.project_sections).toHaveLength(sourceRows.length);
 
     expect(await keysOf(restoredDb, plain.id)).toEqual(plainKeys);
     expect(await keysOf(restoredDb, extended.id)).toEqual(extendedKeys);
   });
 });
-
-async function readStreamToString(stream: ReadableStream<Uint8Array>): Promise<string> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let out = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done)
-      break;
-    if (value)
-      out += decoder.decode(value);
-  }
-  return out;
-}

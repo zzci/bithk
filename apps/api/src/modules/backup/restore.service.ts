@@ -1,19 +1,14 @@
 /**
- * Backup RESTORE — table rows only.
+ * Backup import guards + post-restore reconciliation (v2 dependencies).
  *
- * FIX-072: the v1 JSON import route was retired. `validateBackupData` and
- * `importJsonBackup` no longer have a production caller; they remain as the
- * v1-format round-trip harness used by the module backup tests
- * (`<module>.backup.test.ts`) until those are ported onto the v2 archive
- * services. `assertSane` / `assertIdShape` / the row caps and
- * `reconcileRestoredFiles` are live v2 dependencies.
+ * `assertSane` / `assertIdShape` and the row caps bound every archive row the
+ * v2 importer accepts; `reconcileRestoredFiles` runs after an apply.
  *
- * SCOPE CAVEAT: file blob bytes are **out of backup scope** (see the header
- * of `export.service.ts`). A backup never carries the objects behind
- * `files` rows; it only replays the rows. After a restore onto a
- * deployment whose storage backend does not already hold those blobs, the
- * `files` / `file_references` rows would point at absent objects and every
- * download would 500.
+ * SCOPE CAVEAT: file blob bytes are **out of backup scope**. A backup never
+ * carries the objects behind `files` rows; it only replays the rows. After a
+ * restore onto a deployment whose storage backend does not already hold
+ * those blobs, the `files` / `file_references` rows would point at absent
+ * objects and every download would 500.
  *
  * {@link reconcileRestoredFiles} runs post-restore: it asks the active
  * storage driver whether each restored `files` blob actually exists and
@@ -21,15 +16,15 @@
  * so a restored deployment fails loudly/visibly (a clean 404 on download
  * via the existing `FILE_BACKEND_MISMATCH` path) instead of 500ing — and
  * the operator keeps the row for diagnosis.
+ *
+ * The v1 JSON importer that used to live here was removed in CHORE-013
+ * (routes in FIX-072).
  */
-import type { SQLiteTable } from "drizzle-orm/sqlite-core";
-import type { BackupData } from "./export.service";
 import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
-import { getTableColumns, getTableName, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { getActiveDriver } from "@/modules/file/storage/registry";
 import { AppError } from "@/shared/lib/errors";
-import { getDataModules, resolveModulesWithDeps } from "./registry";
 
 /**
  * Sentinel written into `files.storage_driver` for a quarantined row. It
@@ -48,8 +43,6 @@ export interface ReconcileResult {
   readonly quarantined: number;
 }
 
-const INSERT_BATCH_SIZE = 500;
-
 /**
  * Hard caps to bound an admin-supplied backup. A 50 MB JSON can otherwise
  * contain millions of rows of one table; a single SQLite transaction holding
@@ -60,21 +53,6 @@ export const MAX_TOTAL_ROWS = 1_000_000;
 export const MAX_ROWS_PER_TABLE = 500_000;
 const MAX_STRING_LENGTH = 1_000_000;
 const MAX_OBJECT_DEPTH = 16;
-
-/**
- * Highest backup version this binary knows how to import. Older versions
- * must be upgraded by the migrator chain in `MIGRATIONS`.
- */
-const CURRENT_BACKUP_VERSION = 1;
-
-type BackupMigrator = (data: BackupData) => BackupData;
-
-/**
- * Forward-version migrators: index N transforms version N into N+1. Empty
- * today — when version 2 ships, append a function that reshapes a v1 dump
- * into the v2 layout. Never break old backups outright.
- */
-const MIGRATIONS: ReadonlyArray<BackupMigrator> = [];
 
 /**
  * Walk a parsed JSON tree and reject pathological shapes (unbounded
@@ -118,118 +96,6 @@ export function assertIdShape(row: Record<string, unknown>): void {
     if (k === "id" || k.endsWith("Id") || k.endsWith("_id")) {
       if (!RE_SAFE_ID.test(v))
         throw new AppError(`Invalid id format on field ${k}`, 400, "INVALID_BACKUP_ROW");
-    }
-  }
-}
-
-export function validateBackupData(data: unknown): BackupData {
-  if (!data || typeof data !== "object") {
-    throw new AppError("Invalid backup file format", 400, "INVALID_FORMAT");
-  }
-
-  const obj = data as Record<string, unknown>;
-  const version = typeof obj.version === "number" ? obj.version : 0;
-
-  if (version <= 0 || !Number.isFinite(version)) {
-    throw new AppError("Invalid backup version", 400, "UNSUPPORTED_VERSION");
-  }
-  if (version > CURRENT_BACKUP_VERSION) {
-    throw new AppError(
-      `Backup version ${version} is newer than this build supports (max ${CURRENT_BACKUP_VERSION}). Upgrade the server before restoring.`,
-      400,
-      "UNSUPPORTED_VERSION",
-    );
-  }
-
-  if (!Array.isArray(obj.modules) || obj.modules.length === 0) {
-    throw new AppError("Backup file contains no modules", 400, "NO_MODULES");
-  }
-
-  if (!obj.tables || typeof obj.tables !== "object") {
-    throw new AppError("Backup file contains no table data", 400, "NO_TABLES");
-  }
-
-  // Run forward migrations one at a time so old backups do not break when
-  // the schema evolves. The list is empty in v1 — chain entries land here
-  // on version-2 ship.
-  //
-  // `unknown` first, then `BackupData`: the four checks above prove
-  // `obj.version` is a finite positive integer, `obj.modules` is a
-  // non-empty array, and `obj.tables` is an object. Per-row inspection
-  // happens after the migration chain via `assertSane(current.tables)`
-  // and the row-count caps that follow. TypeScript can't narrow the
-  // generic Record without that runtime work, so the assertion is the
-  // bridge between validated shape and typed code.
-  let current: BackupData = obj as unknown as BackupData;
-  for (let v = version; v < CURRENT_BACKUP_VERSION; v++) {
-    const m = MIGRATIONS[v - 1];
-    if (!m)
-      throw new AppError(`Missing migrator for backup v${v} → v${v + 1}`, 500, "MIGRATOR_MISSING");
-    current = m(current);
-  }
-
-  // Pathological-shape rejection AFTER migration so the migrator can rely
-  // on bounded input.
-  assertSane(current.tables);
-
-  // Row-count caps.
-  let total = 0;
-  for (const [table, rows] of Object.entries(current.tables)) {
-    if (!Array.isArray(rows))
-      throw new AppError(`Invalid table payload for ${table}`, 400, "INVALID_BACKUP_ROW");
-    if (rows.length > MAX_ROWS_PER_TABLE)
-      throw new AppError(`Table ${table} exceeds ${MAX_ROWS_PER_TABLE}-row cap`, 400, "INVALID_BACKUP_ROW");
-    total += rows.length;
-  }
-  if (total > MAX_TOTAL_ROWS)
-    throw new AppError(`Backup exceeds ${MAX_TOTAL_ROWS}-row cap`, 400, "INVALID_BACKUP_ROW");
-
-  return current;
-}
-
-function getDeleteOrder(modules: string[]): SQLiteTable[] {
-  const tables: SQLiteTable[] = [];
-  const resolved = resolveModulesWithDeps(modules);
-  const registry = getDataModules();
-
-  for (const modName of [...resolved].reverse()) {
-    const mod = registry[modName];
-    if (!mod)
-      continue;
-    for (const table of [...mod.tables].reverse()) {
-      tables.push(table);
-    }
-  }
-
-  return tables;
-}
-
-function getInsertOrder(modules: string[]): SQLiteTable[] {
-  const tables: SQLiteTable[] = [];
-  const resolved = resolveModulesWithDeps(modules);
-  const registry = getDataModules();
-
-  for (const modName of resolved) {
-    const mod = registry[modName];
-    if (!mod)
-      continue;
-    for (const table of mod.tables) {
-      tables.push(table);
-    }
-  }
-
-  return tables;
-}
-
-/**
- * Validate that every key in `row` is a known column on `table`. Drops the
- * row entirely if a foreign key is present that the schema does not expect.
- */
-function validateRowShape(table: SQLiteTable, tableName: string, row: Record<string, unknown>): void {
-  const allowed = new Set(Object.keys(getTableColumns(table)));
-  for (const key of Object.keys(row)) {
-    if (!allowed.has(key)) {
-      throw new AppError(`Invalid row in ${tableName}`, 400, "INVALID_BACKUP_ROW");
     }
   }
 }
@@ -309,101 +175,4 @@ export async function reconcileRestoredFiles(db: AppDatabase, logger?: Logger): 
   }
 
   return { checked: rows.length, quarantined };
-}
-
-export async function importJsonBackup(db: AppDatabase, data: BackupData, logger?: Logger): Promise<{ tablesImported: number; rowsImported: number }> {
-  const modules = data.modules;
-  const deleteOrder = getDeleteOrder(modules);
-  const insertOrder = getInsertOrder(modules);
-  const restoredFilesTable = insertOrder.some(t => getTableName(t) === "files");
-
-  let tablesImported = 0;
-  let rowsImported = 0;
-
-  // bun:sqlite transactions are synchronous: the callback must complete
-  // (and throw) before the wrapper decides COMMIT vs ROLLBACK. An async
-  // callback returns a Promise that resolves *after* COMMIT has already
-  // run, so a thrown insert error can no longer roll back. Keep this
-  // closure strictly sync — every operation below is sync at runtime
-  // even though drizzle's types pretend otherwise.
-  db.transaction((tx) => {
-    // defer_foreign_keys is checked at COMMIT time only and applies for the
-    // life of the current transaction. Unlike `PRAGMA foreign_keys = OFF`
-    // which is a process-level flag, this never leaks to other connections.
-    tx.run(sql`PRAGMA defer_foreign_keys = 1`);
-
-    // Only clear tables the payload actually carries. A complete export
-    // emits a key for every table (even an empty `[]`), so a full restore
-    // still wipes-and-replaces everything. But a truncated / hand-edited
-    // upload that drops a table key entirely must leave that live table
-    // untouched — deleting it unconditionally would silently destroy data
-    // the backup never intended to replace.
-    for (const table of deleteOrder) {
-      if (!Object.hasOwn(data.tables, getTableName(table)))
-        continue;
-      tx.delete(table).run();
-    }
-
-    for (const table of insertOrder) {
-      const tableName = getTableName(table);
-      const rows = data.tables[tableName];
-      if (!rows || rows.length === 0)
-        continue;
-
-      tablesImported++;
-
-      const sanitized: Record<string, unknown>[] = rows.map((raw) => {
-        const row = { ...raw };
-        validateRowShape(table, tableName, row);
-        assertIdShape(row);
-        return row;
-      });
-
-      for (let i = 0; i < sanitized.length; i += INSERT_BATCH_SIZE) {
-        const batch = sanitized.slice(i, i + INSERT_BATCH_SIZE);
-        try {
-          // Drizzle accepts an array of values for a single multi-row INSERT.
-          tx.insert(table).values(batch).run();
-        }
-        catch (err) {
-          // Identify the offending row by re-inserting the batch one row at a
-          // time. Slow path, but it only runs on the failure case and gives
-          // operators a clear pointer to the bad row instead of a generic
-          // "FOREIGN KEY constraint failed" against the whole table.
-          for (let j = 0; j < batch.length; j++) {
-            const row = batch[j]!;
-            try {
-              tx.insert(table).values(row).run();
-            }
-            catch (rowErr) {
-              const rowId = typeof row.id === "string" ? row.id : `index ${i + j}`;
-              throw new AppError(
-                `Failed to insert into ${tableName} (row ${rowId}): ${rowErr instanceof Error ? rowErr.message : String(rowErr)}`,
-                400,
-                "INVALID_BACKUP_ROW",
-              );
-            }
-          }
-          // Single-row replay succeeded somehow; report the aggregate error.
-          throw new AppError(
-            `Failed to insert into ${tableName}: ${err instanceof Error ? err.message : String(err)}`,
-            400,
-            "INVALID_BACKUP_ROW",
-          );
-        }
-        rowsImported += batch.length;
-      }
-    }
-  });
-
-  // Blobs are out of backup scope (see header). If this restore replayed
-  // the `files` table, verify the rows against the active storage backend
-  // and quarantine any whose object is absent so downloads fail loudly
-  // (clean 404) instead of 500ing. Runs after COMMIT — the backend probe
-  // is async I/O that must not be held inside the write transaction; the
-  // quarantine writes are small, idempotent, and part of this same flow.
-  if (restoredFilesTable)
-    await reconcileRestoredFiles(db, logger);
-
-  return { tablesImported, rowsImported };
 }

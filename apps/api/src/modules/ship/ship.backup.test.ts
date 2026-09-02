@@ -7,12 +7,11 @@ import { eq, getTableName } from "drizzle-orm";
 import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
 import { users } from "@/modules/account/users/schema";
-import { streamJsonBackup } from "@/modules/backup/export.service";
 import { __resetBackupRegistryForTests, getDataModules, registerBackupContribution, resolveModulesWithDeps } from "@/modules/backup/registry";
-import { importJsonBackup, validateBackupData } from "@/modules/backup/restore.service";
 import { projectBackupContribution } from "@/modules/project/project.backup";
 import { createProject } from "@/modules/project/project.service";
 import { tagBackupContribution } from "@/modules/tag/tag.backup";
+import { roundTripBackupV2 } from "@/shared/test/backup-roundtrip";
 import { shipEquipment, shipEquipmentCategories, shipProfiles, worklists } from "./schema";
 import { shipBackupContribution } from "./ship.backup";
 import { createEquipment } from "./ship.equipment.service";
@@ -69,20 +68,6 @@ async function seedOwner(): Promise<string> {
   return "user_owner";
 }
 
-async function readStreamToString(stream: ReadableStream<Uint8Array>): Promise<string> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let out = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done)
-      break;
-    if (value)
-      out += decoder.decode(value);
-  }
-  return out;
-}
-
 describe("ship backup contribution", () => {
   test("registers the ships module with FK-safe tables and a one-way projects dep", () => {
     const mod = getDataModules().ships;
@@ -115,7 +100,7 @@ describe("ship backup contribution", () => {
 
   test("a ship-only export declares its deps in the manifest", async () => {
     await seedOwner();
-    const { modules } = streamJsonBackup(sourceDb, ["ships"]);
+    const modules = resolveModulesWithDeps(["ships"]);
     expect(modules).toContain("users");
     expect(modules).toContain("projects");
     expect(modules).toContain("ships");
@@ -157,13 +142,10 @@ describe("ship backup contribution", () => {
     const borealisWorklist = await createProjectWorklist(sourceDb, borealis.id, { name: "Deck wash" });
     expect(borealisWorklist.status).toBe("ok");
 
-    const { body } = streamJsonBackup(sourceDb, ["ships"]);
-    const parsed = validateBackupData(JSON.parse(await readStreamToString(body)));
-    expect(parsed.tables.ship_profiles).toHaveLength(2);
-    expect(parsed.tables.ship_equipment).toHaveLength(2);
-    expect(parsed.tables.worklists).toHaveLength(2);
-
-    await importJsonBackup(restoredDb, parsed);
+    const { tables } = await roundTripBackupV2(sourceDb, restoredDb, ["ships"], dir);
+    expect(tables.ship_profiles).toHaveLength(2);
+    expect(tables.ship_equipment).toHaveLength(2);
+    expect(tables.worklists).toHaveLength(2);
 
     // ship_profiles — keyed by project, particulars intact.
     const restoredAuroraProfile = await restoredDb.select().from(shipProfiles).where(eq(shipProfiles.projectId, aurora.id)).get();
@@ -213,8 +195,7 @@ describe("ship backup contribution", () => {
     const scoped = await createProjectWorklist(sourceDb, ship.id, { name: "Project local" });
     expect(scoped.status).toBe("ok");
 
-    const { body } = streamJsonBackup(sourceDb, ["ships"]);
-    await importJsonBackup(restoredDb, validateBackupData(JSON.parse(await readStreamToString(body))));
+    await roundTripBackupV2(sourceDb, restoredDb, ["ships"], dir);
 
     const restored = await restoredDb.select().from(worklists).all();
     expect(restored.map(w => w.name).sort()).toEqual(["Global template", "Project local"]);

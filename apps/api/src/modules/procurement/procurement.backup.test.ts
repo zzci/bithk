@@ -7,7 +7,6 @@ import { eq, getTableName } from "drizzle-orm";
 import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
 import { users } from "@/modules/account/users/schema";
-import { streamJsonBackup } from "@/modules/backup/export.service";
 import {
   __resetBackupRegistryForTests,
   getDataModules,
@@ -15,12 +14,12 @@ import {
   registerBackupContribution,
   resolveModulesWithDeps,
 } from "@/modules/backup/registry";
-import { importJsonBackup, validateBackupData } from "@/modules/backup/restore.service";
 import { itemBackupContribution } from "@/modules/item/item.backup";
 import { policyBackupContribution } from "@/modules/policy/policy.backup";
 import { projectBackupContribution } from "@/modules/project/project.backup";
 import { createProject } from "@/modules/project/project.service";
 import { tagBackupContribution } from "@/modules/tag/tag.backup";
+import { roundTripBackupV2 } from "@/shared/test/backup-roundtrip";
 import { procurementBackupContribution } from "./procurement.backup";
 import { createCategory } from "./procurement.categories";
 import { createGlobalCategory } from "./procurement.global-categories";
@@ -113,17 +112,13 @@ describe("procurement backup contribution", () => {
     const survey = await createProject(sourceDb, { name: "Survey", creatorId: "user_owner" });
     await createCategory(sourceDb, refit.id, { name: "Materials", code: "MAT" });
 
-    const { modules, body } = streamJsonBackup(sourceDb, ["procurements"]);
+    const { modules, tables } = await roundTripBackupV2(sourceDb, restoredDb, ["procurements"], dir);
     // `projects` is pulled in as a dependency, ahead of this contribution.
     expect(modules).toContain("projects");
     expect(modules.indexOf("projects")).toBeLessThan(modules.indexOf("procurements"));
-
-    const parsed = validateBackupData(JSON.parse(await readStreamToString(body)));
     // 2 globals copied into each of 2 projects, plus the one added by hand.
-    expect(parsed.tables.procurement_categories).toHaveLength(5);
-    expect(parsed.tables.global_procurement_categories).toHaveLength(2);
-
-    await importJsonBackup(restoredDb, parsed);
+    expect(tables.procurement_categories).toHaveLength(5);
+    expect(tables.global_procurement_categories).toHaveLength(2);
 
     const namesFor = async (projectId: string): Promise<string[]> => {
       const rows = await restoredDb
@@ -143,17 +138,3 @@ describe("procurement backup contribution", () => {
     expect(restoredGlobals.map(g => g.name).sort()).toEqual(["Engine", "Safety"]);
   });
 });
-
-async function readStreamToString(stream: ReadableStream<Uint8Array>): Promise<string> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let out = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done)
-      break;
-    if (value)
-      out += decoder.decode(value);
-  }
-  return out;
-}

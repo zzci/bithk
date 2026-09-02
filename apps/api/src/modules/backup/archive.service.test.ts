@@ -11,15 +11,16 @@ import { blob, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { extract as tarExtract } from "tar-stream";
 import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
+import { users } from "@/modules/account/users/schema";
 import { cronBackupContribution } from "@/modules/cron/cron.backup";
 import { fileBackupContribution } from "@/modules/file/file.backup";
 import { legacyContentAddressedKey } from "@/modules/file/storage/key";
 import { __setLocalDriverRootForTests, localDriver } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, registerDriver, setActiveDriver } from "@/modules/file/storage/registry";
+import { settings } from "@/modules/settings/schema";
 import { settingsBackupContribution } from "@/modules/settings/settings.backup";
 import { seedUser, testNanoid } from "@/shared/test/route-harness";
 import { ExportCancelledError, streamBatchSizeFor, streamTableRows, writeArchiveV2 } from "./archive.service";
-import { streamJsonBackup } from "./export.service";
 import { __resetBackupRegistryForTests, registerBackupContribution } from "./registry";
 import "@/modules/account";
 
@@ -154,7 +155,7 @@ describe("writeArchiveV2 — manifest", () => {
 });
 
 describe("writeArchiveV2 — NDJSON fidelity", () => {
-  test("rows are key-for-key identical to the v1 exporter output", async () => {
+  test("rows are key-for-key identical to the live table rows", async () => {
     await seedUser(db, "admin");
     await seedUser(db, "user");
     await db.run(sql`
@@ -162,8 +163,10 @@ describe("writeArchiveV2 — NDJSON fidelity", () => {
       INSERT INTO settings (key, value, updated_at) SELECT 'k' || n, 'v' || n, '2026-01-01T00:00:00Z' FROM c
     `);
 
-    const v1 = streamJsonBackup(db, ["users", "settings"]);
-    const v1Dump = JSON.parse(await new Response(v1.body).text()) as { tables: Record<string, Record<string, unknown>[]> };
+    // JSON round trip of the live rows: the archive carries drizzle property
+    // names and JSON-safe values, exactly what a select yields once stringified.
+    const asJson = (rows: readonly unknown[]): Record<string, unknown>[] => JSON.parse(JSON.stringify(rows)) as Record<string, unknown>[];
+    const byId = (a: Record<string, unknown>, b: Record<string, unknown>): number => String(a.id).localeCompare(String(b.id));
 
     const { archivePath } = await writeArchiveV2({
       db,
@@ -174,13 +177,12 @@ describe("writeArchiveV2 — NDJSON fidelity", () => {
     const entries = await readArchive(archivePath);
 
     const usersRows = parseNdjson(entries.find(e => e.name === "data/users.ndjson")!);
-    expect(usersRows).toEqual(v1Dump.tables.users!);
-    // 1500 rows spans two keyset batches. v2 keysets on the `key` PK
-    // (lexicographic) while v1 pages by OFFSET (insertion order) — compare
-    // as sets under one order.
+    expect([...usersRows].sort(byId)).toEqual(asJson(await db.select().from(users).all()).sort(byId));
+    // 1500 rows spans two keyset batches on the `key` PK — compare as sets
+    // under one order.
     const byKey = (a: Record<string, unknown>, b: Record<string, unknown>): number => String(a.key).localeCompare(String(b.key));
     const settingsRows = parseNdjson(entries.find(e => e.name === "data/settings.ndjson")!);
-    expect([...settingsRows].sort(byKey)).toEqual([...v1Dump.tables.settings!].sort(byKey));
+    expect([...settingsRows].sort(byKey)).toEqual(asJson(await db.select().from(settings).all()).sort(byKey));
   });
 });
 

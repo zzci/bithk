@@ -5,11 +5,10 @@ import { resolve as resolvePath } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { getTableName } from "drizzle-orm";
 import { createDb } from "@/db";
-import { streamJsonBackup } from "@/modules/backup/export.service";
 import { __resetBackupRegistryForTests, getDataModules, registerBackupContribution } from "@/modules/backup/registry";
-import { importJsonBackup, validateBackupData } from "@/modules/backup/restore.service";
 import { tags, tagsRefs } from "@/modules/tag/schema";
 import { tagBackupContribution } from "@/modules/tag/tag.backup";
+import { roundTripBackupV2 } from "@/shared/test/backup-roundtrip";
 import { contactBackupContribution } from "./contact.backup";
 import { contacts } from "./schema";
 
@@ -84,15 +83,12 @@ describe("contact backup contribution", () => {
       tagId: "tag_supplier",
     }).run();
 
-    const { modules, body } = streamJsonBackup(sourceDb, ["contacts"]);
-    const parsed = validateBackupData(JSON.parse(await readStreamToString(body)));
+    const { modules, tables, result } = await roundTripBackupV2(sourceDb, restoredDb, ["contacts"], dir);
     expect(modules).toEqual(["tags", "contacts"]);
-    expect(parsed.tables.contacts).toHaveLength(1);
+    expect(tables.contacts).toHaveLength(1);
     // The assignment link is exported under the shared `tags_refs` table.
-    expect(parsed.tables.tags_refs).toHaveLength(1);
-
-    const result = await importJsonBackup(restoredDb, parsed);
-    expect(result.rowsImported).toBeGreaterThanOrEqual(3);
+    expect(tables.tags_refs).toHaveLength(1);
+    expect(result.totals.inserted).toBeGreaterThanOrEqual(3);
 
     const restoredContacts = await restoredDb
       .select({
@@ -125,17 +121,3 @@ describe("contact backup contribution", () => {
     expect(restoredLinks).toEqual([{ resourceId: "contact_supplier", tagId: "tag_supplier" }]);
   });
 });
-
-async function readStreamToString(stream: ReadableStream<Uint8Array>): Promise<string> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let out = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done)
-      break;
-    if (value)
-      out += decoder.decode(value);
-  }
-  return out;
-}
