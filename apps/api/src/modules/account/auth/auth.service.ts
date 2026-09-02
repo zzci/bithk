@@ -682,21 +682,20 @@ export async function oauthSessionAuthProvider(db: AppDatabase, c: Context<AppEn
     return undefined;
   }
 
-  // Access token expired but the session is still within its ceiling: refresh
-  // it in the background when a refresh token is available. A failed or
-  // impossible refresh is NOT fatal — the user stays logged in until the
-  // ceiling with a stale access token (the app does not use the access token
-  // for per-request auth, only login-time userinfo and logout revocation).
+  // Access token expired but the session is still within its ceiling: kick
+  // off a refresh when a refresh token is available, WITHOUT awaiting it
+  // (FIX-073) — the request is authenticated by the session row, not by the
+  // IdP token, so a slow or hung token endpoint must not pin the caller.
+  // A failed or impossible refresh is NOT fatal — the user stays logged in
+  // until the ceiling with a stale access token (the app does not use the
+  // access token for per-request auth, only login-time userinfo and logout
+  // revocation), and the refresh is retried on the next request.
   const accessTokenExpired = session.accessTokenExpiresAt != null
     && new Date(session.accessTokenExpiresAt).getTime() <= Date.now();
   if (accessTokenExpired && session.refreshToken) {
-    try {
-      await refreshSessionWithMutex(db, session.id, session.refreshToken, config);
-    }
-    catch {
-      // Keep the session; the refresh is retried on the next request while the
-      // session remains within its ceiling.
-    }
+    void refreshSessionWithMutex(db, session.id, session.refreshToken, config).catch(() => {
+      // Retried on the next request while the session remains within its ceiling.
+    });
   }
 
   return user;

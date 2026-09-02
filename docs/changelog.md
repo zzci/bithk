@@ -311,6 +311,12 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Fixed
 
+- Outbound OIDC requests (token exchange, userinfo, refresh, revocation) now
+  carry a 10 s abort timeout, and the per-request auth provider no longer
+  awaits the refresh-token grant inline (FIX-073). A slow or hung IdP token
+  endpoint used to pin every request of a session whose access token had
+  expired; the refresh now runs in the background and the request proceeds on
+  the still-valid session row.
 - A page of ship project cards renders in one request instead of one profile
   request per card (FIX-071). `GET /projects` list rows now carry a batched
   per-section profile summary — resolved in the same batch pass the list

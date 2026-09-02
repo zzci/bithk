@@ -5,9 +5,11 @@ import { afterEach, describe, expect, mock, test } from "bun:test";
 import {
   __resetOidcConfigForTests,
   buildAuthorizeUrl,
+  fetchUserInfo,
   pkceChallenge,
   randomPkceVerifier,
   randomState,
+  refreshTokens,
   revokeToken,
 } from "./oidc";
 
@@ -147,5 +149,37 @@ describe("revokeToken (RFC 7009 path-replacement fallback)", () => {
       appConfig: appConfig(),
       token: "tok",
     })).resolves.toBeUndefined();
+  });
+});
+
+// FIX-073: every oauth4webapi request must carry an AbortSignal so a hung
+// IdP cannot pin the caller (the refresh grant runs from the per-request
+// auth provider). Capture the `fetch` init and assert the signal is there.
+describe("outbound request timeouts", () => {
+  function jsonResponse(body: unknown): Response {
+    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  }
+
+  function capturingFetch(body: unknown) {
+    const calls: RequestInit[] = [];
+    globalThis.fetch = mock((_url: string, init?: RequestInit) => {
+      calls.push(init ?? {});
+      return Promise.resolve(jsonResponse(body));
+    }) as unknown as typeof fetch;
+    return calls;
+  }
+
+  test("refreshTokens passes an AbortSignal to fetch", async () => {
+    const calls = capturingFetch({ access_token: "new", token_type: "Bearer", expires_in: 60 });
+    await refreshTokens({ oauth: oauthConfig(), appConfig: appConfig(), refreshToken: "rt" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  test("fetchUserInfo passes an AbortSignal to fetch", async () => {
+    const calls = capturingFetch({ sub: "sub-1", email: "a@example.com" });
+    await fetchUserInfo({ oauth: oauthConfig(), appConfig: appConfig(), accessToken: "at", expectedSub: "sub-1" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.signal).toBeInstanceOf(AbortSignal);
   });
 });

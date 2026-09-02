@@ -31,6 +31,19 @@ interface CachedAs {
 
 let cached: CachedAs | null = null;
 
+/**
+ * Wall-clock budget for every outbound IdP request (token exchange, userinfo,
+ * refresh, revocation). Mirrors the OIDC discovery timeout. The refresh grant
+ * runs from the per-request auth provider, so without a bound a hung IdP
+ * would pin callers indefinitely (FIX-073).
+ */
+export const OIDC_REQUEST_TIMEOUT_MS = 10_000;
+
+interface OidcRequestOptions {
+  readonly signal: (url: string) => AbortSignal;
+  readonly [oauth.allowInsecureRequests]?: true;
+}
+
 function asKey(oauth: OAuthConfig): string {
   return `${oauth.clientId}|${oauth.tokenUrl}|${oauth.authorizeUrl}|${oauth.userinfoUrl}`;
 }
@@ -90,15 +103,20 @@ export function __resetOidcConfigForTests(): void {
 }
 
 /**
- * Compute the per-request options bag that opts into HTTP-only endpoints.
- * oauth4webapi reads `[allowInsecureRequests]` off the options argument of
- * each request function (NOT off the AuthorizationServer object). Plain
- * HTTP is rejected by default; we opt in when the operator's config is
- * fully http and we are not in production. Production stays strict.
+ * Per-request options bag for every oauth4webapi request: a fresh timeout
+ * signal per call (oauth4webapi invokes the function with the target URL),
+ * plus the HTTP-only opt-in. oauth4webapi reads `[allowInsecureRequests]`
+ * off the options argument of each request function (NOT off the
+ * AuthorizationServer object). Plain HTTP is rejected by default; we opt in
+ * when the operator's config is http and we are not in production.
+ * Production stays strict.
  */
-function insecureOptions(appConfig: Config, oauthConfig: OAuthConfig): { [oauth.allowInsecureRequests]?: true } {
+function requestOptions(appConfig: Config, oauthConfig: OAuthConfig): OidcRequestOptions {
   const { insecure } = buildAs(oauthConfig, appConfig);
-  return insecure ? { [oauth.allowInsecureRequests]: true } : {};
+  return {
+    signal: () => AbortSignal.timeout(OIDC_REQUEST_TIMEOUT_MS),
+    ...(insecure ? { [oauth.allowInsecureRequests]: true } : {}),
+  };
 }
 
 // ─── PKCE / state helpers (delegating to oauth4webapi) ───
@@ -174,7 +192,7 @@ export async function exchangeCodeForTokens(args: {
     params,
     redirectUri,
     verifier,
-    insecureOptions(args.appConfig, args.oauth),
+    requestOptions(args.appConfig, args.oauth),
   );
 
   const tokens = await oauth.processAuthorizationCodeResponse(as, client, response);
@@ -205,7 +223,7 @@ export async function fetchUserInfo(args: {
   expectedSub: string;
 }): Promise<OidcUserInfo> {
   const { as, client } = buildAs(args.oauth, args.appConfig);
-  const response = await oauth.userInfoRequest(as, client, args.accessToken, insecureOptions(args.appConfig, args.oauth));
+  const response = await oauth.userInfoRequest(as, client, args.accessToken, requestOptions(args.appConfig, args.oauth));
   // When we don't know the sub yet (no id_token, or id_token absent), pass
   // the skipSubjectCheck symbol — oauth4webapi enforces a strict equality
   // check otherwise and aborts. The caller still trusts the userinfo body
@@ -225,7 +243,7 @@ export async function refreshTokens(args: {
   refreshToken: string;
 }): Promise<OidcTokens> {
   const { as, client, clientAuth } = buildAs(args.oauth, args.appConfig);
-  const response = await oauth.refreshTokenGrantRequest(as, client, clientAuth, args.refreshToken, insecureOptions(args.appConfig, args.oauth));
+  const response = await oauth.refreshTokenGrantRequest(as, client, clientAuth, args.refreshToken, requestOptions(args.appConfig, args.oauth));
   const tokens = await oauth.processRefreshTokenResponse(as, client, response);
   return {
     access_token: tokens.access_token,
@@ -251,7 +269,7 @@ export async function revokeToken(args: {
   if (as.revocation_endpoint) {
     try {
       const opts: oauth.RevocationRequestOptions = {
-        ...insecureOptions(args.appConfig, args.oauth),
+        ...requestOptions(args.appConfig, args.oauth),
         ...(args.hint ? { additionalParameters: new URLSearchParams({ token_type_hint: args.hint }) } : {}),
       };
       const response = await oauth.revocationRequest(as, client, clientAuth, args.token, opts);

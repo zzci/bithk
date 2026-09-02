@@ -502,3 +502,57 @@ describe("readIdTokenSub — present vs absent vs unparseable", () => {
     expect(() => __readIdTokenSubForTests(jwt({ sub: "" }))).toThrow(__IdTokenErrorForTests);
   });
 });
+
+// FIX-073: an expired access token with a refresh token used to be refreshed
+// INLINE, so a hung IdP token endpoint pinned every request of that session.
+// The refresh now runs in the background; the provider resolves the user
+// from the still-valid session at once.
+describe("background access-token refresh (FIX-073)", () => {
+  const oauthCfg = {
+    NODE_ENV: "test",
+    BASE_PATH: "",
+    OAUTH_CLIENT_ID: "client-abc",
+    OAUTH_AUTHORIZE_URL: "https://idp.example.com/authorize",
+    OAUTH_TOKEN_URL: "https://idp.example.com/token",
+    OAUTH_USERINFO_URL: "https://idp.example.com/userinfo",
+    OAUTH_PKCE: true,
+  } as unknown as Config;
+
+  test("does not wait on a hung refresh-token grant", async () => {
+    const user = await createVirtualUser(db, { username: "sess4", name: "Sess Four" });
+    const sessionId = await createSession(db, user!.id, "tok", "refresh-tok", 86400, 3600);
+    await db.update(sessions)
+      .set({ accessTokenExpiresAt: new Date(Date.now() - 1000).toISOString() })
+      .where(eq(sessions.id, sessionId))
+      .run();
+
+    const originalFetch = globalThis.fetch;
+    let tokenCalls = 0;
+    globalThis.fetch = ((url: string | URL | Request) => {
+      if (String(url).includes("/token"))
+        tokenCalls++;
+      return new Promise<Response>(() => {}); // never settles — a hung IdP
+    }) as unknown as typeof fetch;
+    try {
+      const app = new Hono<AppEnv>();
+      app.use("*", async (c, next) => {
+        c.set("config", oauthCfg);
+        await next();
+      });
+      app.get("/probe", async c => c.json({ id: (await oauthSessionAuthProvider(db, c))?.id ?? null }));
+
+      const probe = Promise.resolve(app.request("/probe", { headers: { cookie: `session_id=${sessionId}` } }))
+        .then(async res => (await res.json() as { id: string | null }).id);
+      const outcome = await Promise.race([
+        probe,
+        new Promise<"timeout">(resolve => setTimeout(resolve, 1_000, "timeout")),
+      ]);
+      expect(outcome).toBe(user!.id);
+      // The refresh was still attempted (in the background).
+      expect(tokenCalls).toBe(1);
+    }
+    finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
