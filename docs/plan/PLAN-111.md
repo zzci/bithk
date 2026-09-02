@@ -1,6 +1,6 @@
 # PLAN-111 - Remediate the 2026-09-01 repository audit findings
 
-- Status: Implementing
+- Status: Completed
 - Approved: 2026-09-01
 - Task: [FIX-072](../task/FIX-072.md), [FIX-073](../task/FIX-073.md), [FIX-074](../task/FIX-074.md), [CHORE-011](../task/CHORE-011.md), [CHORE-012](../task/CHORE-012.md)
 - Campaign: local
@@ -184,3 +184,15 @@ FIX-074, CHORE-011, CHORE-012, each RED -> GREEN -> IMPROVE with
   removed. CHORE-011 is re-scoped: only the orphan `apps/api/src/dev.ts`
   removal stays; the two tabs become the front end of new FEAT work (see the
   revised proposal appended below once investigated).
+
+## Status Notes
+
+- 2026-09-01: FIX-072 (`ffcfa54c`), FIX-073 (`1ca112e4`), FIX-074
+  (`b1846729`), CHORE-011 (`8c16335f`), CHORE-012 (`fe0729a4`) landed on
+  local `main`, each with `bun run check` EXIT 0. The closing full e2e run
+  first failed in the harness itself: `tests/e2e/lib/grant.ts` still granted
+  the `ships` module key removed by PLAN-108 (a pre-existing drift on `main`).
+  Filed and fixed as TEST-003 together with the other stale specs the run
+  surfaced (`search.test.ts` ships bucket, `ship/main-flow.test.ts` on
+  `/api/ships`, `drive/backup.test.ts` on the retired v1 export): final run
+  105 / 105 pass. Plan complete.

@@ -26,15 +26,31 @@ describe("drive backup contribution", () => {
       body: { name: `backup-fixture-${Date.now()}` },
     });
 
-    const res = await admin.raw("/api/backup/export", {
+    // v2 export job (FIX-072 retired the v1 JSON route): start, poll to
+    // `completed`, download the data artifact.
+    const start = await admin.raw("/api/backup/v2/exports", {
       method: "POST",
       body: { modules: ["users", "files", "drive"] },
     });
+    expect(start.status).toBe(202);
+    const { jobId } = await start.json() as { jobId: string };
+    const deadline = Date.now() + 30_000;
+    let state = "pending";
+    while (Date.now() < deadline && state !== "completed" && state !== "failed") {
+      await Bun.sleep(200);
+      state = (await admin.json<{ state: string }>(`/api/backup/v2/exports/${jobId}`)).state;
+    }
+    expect(state).toBe("completed");
+
+    const res = await admin.raw(`/api/backup/v2/exports/${jobId}/download?artifact=data`);
     expect(res.status).toBe(200);
-    const dump = await res.json() as { modules: string[]; tables: Record<string, unknown[]> };
-    expect(dump.modules).toContain("drive");
-    const driveRows = dump.tables.drive_entries ?? [];
-    expect(driveRows.find(r => (r as { id: string }).id === folder.data.id)).toBeDefined();
+    // The archive is a gzip'd tar: manifest.json first, then one NDJSON per
+    // table. Inflate it and look for the drive table + the fixture row id
+    // in the raw bytes — enough to prove the row round-tripped without a
+    // tar parser in the test.
+    const tar = new TextDecoder().decode(Bun.gunzipSync(new Uint8Array(await res.arrayBuffer())));
+    expect(tar).toContain("\"name\": \"drive_entries\"");
+    expect(tar).toContain(folder.data.id);
 
     // Cleanup.
     await admin.raw(`/api/drive/entries/${folder.data.id}/permanent`, { method: "DELETE" });

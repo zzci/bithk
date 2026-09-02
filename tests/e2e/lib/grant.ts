@@ -1,8 +1,10 @@
 import type { ApiClient } from "./api";
 import { getClient } from "./oidc";
 
-// Every gateable module key (mirrors `MODULES` in the API's shared/modules.ts).
-const ALL_MODULES = ["documents", "drive", "projects", "ships", "contacts", "hr"] as const;
+// Every gateable module key (mirrors `MODULE_KEYS` in the API's
+// shared/module-manifest.ts — there is no `ships` key since PLAN-108; the
+// maritime sections live under `projects`).
+const ALL_MODULES = ["documents", "drive", "projects", "contacts", "hr"] as const;
 
 // Unique suffix per group so repeated calls across suites never collide on the
 // unique group-name constraint; the grant persists in the shared run DB, so the

@@ -11,7 +11,6 @@ interface SearchResult {
   documents: Hit[];
   issues: Hit[];
   projects: Hit[];
-  ships: Hit[];
   drive: Hit[];
 }
 
@@ -46,7 +45,7 @@ describe("/api/search (global)", () => {
   it("an empty query returns empty buckets without error", async () => {
     const admin = await getClient("admin@example.com", "admin");
     const res = await admin.json<{ data: SearchResult }>("/api/search?q=");
-    expect(res.data).toEqual({ documents: [], issues: [], projects: [], ships: [], drive: [] });
+    expect(res.data).toEqual({ documents: [], issues: [], projects: [], drive: [] });
   });
 
   it("requires authentication (401)", async () => {
