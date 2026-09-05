@@ -67,6 +67,33 @@ function resolveMigrationsFolder(): string {
 
 export type AppDatabase = Awaited<ReturnType<typeof createDb>>;
 
+/** A separate read transaction keeps async exports on one committed snapshot. */
+export function createReadSnapshot(source: AppDatabase): AppDatabase {
+  const filename = source.$client.filename;
+  const sqlite = filename && filename !== ":memory:"
+    ? new Database(filename, { readonly: true, strict: true })
+    : Database.deserialize(source.$client.serialize(), { readonly: true, strict: true });
+  try {
+    sqlite.exec("PRAGMA busy_timeout = 5000");
+    sqlite.exec("BEGIN");
+    // BEGIN is deferred: perform a read before the exporter yields to writers.
+    sqlite.query("SELECT name FROM sqlite_master LIMIT 1").get();
+  }
+  catch (err) {
+    sqlite.close();
+    throw err;
+  }
+  let closed = false;
+  return Object.assign(drizzle(sqlite, { schema }), {
+    close: () => {
+      if (!closed) {
+        sqlite.close();
+        closed = true;
+      }
+    },
+  });
+}
+
 /** The transaction handle passed to `db.transaction(tx => …)` callbacks. */
 export type AppTransaction = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
 

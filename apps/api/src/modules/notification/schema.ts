@@ -32,7 +32,7 @@ export const webhooks = sqliteTable("webhooks", {
 // One row per (webhook, event) delivery attempt chain. `id` is a ULID so
 // ordering equals creation order; `payload` is the JSON body exactly as
 // posted. Cascade-deletes with the webhook. The dispatcher prunes each
-// webhook to its latest 200 rows.
+// webhook to its latest 200 completed rows; pending work is never pruned.
 export const webhookDeliveries = sqliteTable("webhook_deliveries", {
   id: text("id").primaryKey(),
   webhookId: text("webhook_id").notNull().references(() => webhooks.id, { onDelete: "cascade" }),

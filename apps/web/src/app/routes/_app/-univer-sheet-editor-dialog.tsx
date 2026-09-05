@@ -126,7 +126,12 @@ function formatNow(): string {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: UniverSheetEditorDialogProps) {
+export function UniverSheetEditorDialog(props: UniverSheetEditorDialogProps) {
+  const userId = useAuthStore(s => s.user?.id) ?? "";
+  return props.open ? <SheetEditorSession key={`${userId}:${props.entry.id}`} {...props} /> : null;
+}
+
+function SheetEditorSession({ entry, open, onOpenChange, canEdit }: UniverSheetEditorDialogProps) {
   const { t, i18n } = useTranslation("drive");
   const entryId = entry.id;
   // Local drafts are keyed per user so a shared browser never leaks one
@@ -143,11 +148,12 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
   });
   // Destructure the (stable) mutate fn so it can sit in effect/callback dep
   // arrays without dragging in the mutation object whose identity churns.
-  const { mutateAsync: uploadVersionAsync, isPending: uploadingVersion } = useUploadVersion();
+  const { mutateAsync: uploadVersionAsync } = useUploadVersion();
   const { mutateAsync: overwriteVersionAsync } = useOverwriteVersion();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const univerRef = useRef<ReturnType<typeof createUniver> | null>(null);
+  const liveSnapshotRef = useRef<{ source: IWorkbookData; data: IWorkbookData } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -165,7 +171,8 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
   // Guards a flush after unmount: once the dialog is gone we must not fire a
   // save (the mutation + toast would run against a torn-down tree).
   const unmountedRef = useRef(false);
-  const saveVersionRef = useRef<() => Promise<void>>(async () => {});
+  const saveVersionRef = useRef<() => Promise<boolean>>(async () => false);
+  const editRevisionRef = useRef(0);
   // Session-coalesced autosave: the version this editing session owns. The first
   // save of a session creates it; every later save overwrites it — so one open
   // session yields a single version. Reset per open (null → next save creates).
@@ -209,19 +216,25 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
   // recovered edits are written back as a version on the next idle / manual save.
   const draft = useMemo(() => (open && userId ? readSheetDraft(userId, entryId) : null), [open, userId, entryId]);
 
+  // Background invalidations must not replace the workbook being edited.
+  // Only an explicit version switch changes this session's starting snapshot.
+  const [selectedSnapshot, setSelectedSnapshot] = useState<{ content: string }>();
+  const source = draft?.content ?? snapshot;
+  if (selectedSnapshot === undefined && source !== undefined)
+    setSelectedSnapshot({ content: source });
+
   // Parse the effective snapshot (local draft over server) in render so a
   // malformed file surfaces as a load error without an effect-driven re-render.
   const parsed = useMemo<{ data: IWorkbookData | null; error: boolean }>(() => {
-    const source = draft?.content ?? snapshot;
-    if (source === undefined)
+    if (selectedSnapshot === undefined)
       return { data: null, error: false };
     try {
-      return { data: JSON.parse(source) as IWorkbookData, error: false };
+      return { data: JSON.parse(selectedSnapshot.content) as IWorkbookData, error: false };
     }
     catch {
       return { data: null, error: true };
     }
-  }, [draft, snapshot]);
+  }, [selectedSnapshot]);
   const workbookData = parsed.data;
 
   // ── Save the current workbook into this session's version ──
@@ -232,13 +245,15 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
   // in-flight guard blocks a concurrent create from duplicating the version.
   const saveVersion = useCallback(async () => {
     if (!canEditRef.current || savingRef.current)
-      return;
+      return false;
     const workbook = univerRef.current?.univerAPI.getActiveWorkbook();
     if (!workbook)
-      return;
-    // A save now satisfies both the idle debounce and the max-wait net.
+      return false;
     clearAutosaveTimers();
     const content = JSON.stringify(workbook.save());
+    const savedRevision = editRevisionRef.current;
+    if (userId)
+      writeSheetDraft(userId, entryId, content);
     savingRef.current = true;
     setSaving(true);
     try {
@@ -251,44 +266,46 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
         // Newest first (ULID id desc) → [0] is the just-created session version.
         sessionVersionIdRef.current = versions[0]?.id ?? null;
       }
-      // Content is now a server version — drop the local recovery draft (later
-      // edits recreate it on the next local tick). Done before the unmount guard
-      // so a close mid-save still clears the now-persisted draft.
-      if (userIdRef.current)
-        clearSheetDraft(userIdRef.current, entryId);
       if (unmountedRef.current)
-        return;
-      setDirty(false);
+        return false;
+      const unchanged = editRevisionRef.current === savedRevision;
+      if (unchanged) {
+        if (userId)
+          clearSheetDraft(userId, entryId);
+        dirtyRef.current = false;
+        setDirty(false);
+      }
+      else {
+        const latestWorkbook = univerRef.current?.univerAPI.getActiveWorkbook();
+        if (userId && latestWorkbook)
+          writeSheetDraft(userId, entryId, JSON.stringify(latestWorkbook.save()));
+        // A long request may outlive the next idle timer. Keep newer edits queued.
+        if (!idleTimerRef.current) {
+          idleTimerRef.current = setTimeout(() => {
+            idleTimerRef.current = null;
+            void saveVersionRef.current();
+          }, AUTOSAVE_IDLE_MS);
+        }
+      }
       setSaveFailed(false);
       setSavedTime(formatNow());
+      return unchanged;
     }
     catch {
       if (!unmountedRef.current)
         setSaveFailed(true);
+      return false;
     }
     finally {
       savingRef.current = false;
       if (!unmountedRef.current)
         setSaving(false);
     }
-  }, [entryId, entry.name, uploadVersionAsync, overwriteVersionAsync, clearAutosaveTimers]);
+  }, [entryId, entry.name, userId, uploadVersionAsync, overwriteVersionAsync, clearAutosaveTimers]);
 
   useEffect(() => {
     saveVersionRef.current = saveVersion;
   }, [saveVersion]);
-
-  // ── Reset per-open session state ──
-  useEffect(() => {
-    if (!open)
-      return undefined;
-    unmountedRef.current = false;
-    sessionVersionIdRef.current = null;
-    restoredToastedRef.current = false;
-    setDirty(false);
-    setSaveFailed(false);
-    setSavedTime(null);
-    return undefined;
-  }, [open, entryId]);
 
   // ── Persist the local draft on close / unmount ──
   // Closing does NOT create a server version (versions come only from idle /
@@ -297,24 +314,17 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
   useEffect(() => {
     if (!open)
       return undefined;
+    unmountedRef.current = false;
     return () => {
       unmountedRef.current = true;
+      clearAutosaveTimers();
       if (canEditRef.current && dirtyRef.current && userIdRef.current) {
         const workbook = univerRef.current?.univerAPI.getActiveWorkbook();
         if (workbook)
           writeSheetDraft(userIdRef.current, entryId, JSON.stringify(workbook.save()));
       }
     };
-  }, [open, entryId]);
-
-  // ── Cancel any pending autosave timers when the dialog closes ──
-  // The timers are (re)armed from the edit (MUTATION) handler below.
-  useEffect(() => {
-    if (open)
-      return undefined;
-    clearAutosaveTimers();
-    return undefined;
-  }, [open, clearAutosaveTimers]);
+  }, [open, entryId, clearAutosaveTimers]);
 
   // Mount Univer once the container is in the DOM and the snapshot has parsed.
   // Re-runs when the data changes (e.g. after setting the display version) or
@@ -332,7 +342,8 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
       presets: [UniverSheetsCorePreset({ container })],
     });
     univerRef.current = instance;
-    instance.univerAPI.createWorkbook(workbookData);
+    const previous = liveSnapshotRef.current;
+    instance.univerAPI.createWorkbook(previous?.source === workbookData ? previous.data : workbookData);
 
     const subscription = instance.univerAPI.onCommandExecuted((command) => {
       if (!canEditRef.current)
@@ -340,6 +351,8 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
       // MUTATIONs are the snapshot-changing edits; ignore selection/operations.
       if (command.type !== CommandType.MUTATION)
         return;
+      editRevisionRef.current++;
+      dirtyRef.current = true;
       setDirty(true);
       // Server save: (re)arm the idle timer so a version is written 2 minutes
       // after the LAST edit — continuous editing keeps pushing it back, so the
@@ -364,13 +377,15 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
     setUniverReady(true);
 
     return () => {
+      const workbook = instance.univerAPI.getActiveWorkbook();
+      if (workbook)
+        liveSnapshotRef.current = { source: workbookData, data: workbook.save() };
       subscription.dispose();
-      clearAutosaveTimers();
       setUniverReady(false);
       instance.univer.dispose();
       univerRef.current = null;
     };
-  }, [workbookData, locale, clearAutosaveTimers]);
+  }, [workbookData, locale, entryId]);
 
   // Apply engine-level editability whenever `canEdit` or the instance changes.
   useEffect(() => {
@@ -382,21 +397,20 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
   // A recovered local draft: mark the sheet dirty (so it is written back on the
   // next idle / manual save) and announce the recovery once per open.
   useEffect(() => {
-    if (!open || !draft || !univerReady)
+    if (!open || !draft || !univerReady || restoredToastedRef.current)
       return;
+    dirtyRef.current = true;
     setDirty(true);
-    if (!restoredToastedRef.current) {
-      restoredToastedRef.current = true;
-      toast.info(t("sheet.restoredDraft"));
-    }
+    restoredToastedRef.current = true;
+    toast.info(t("sheet.restoredDraft"));
   }, [open, draft, univerReady, t]);
 
   const handleSave = useCallback(() => {
-    void saveVersion().then(() => {
-      if (!unmountedRef.current && !saveFailed)
+    void saveVersion().then((saved) => {
+      if (!unmountedRef.current && saved)
         toast.success(t("sheet.saved"));
     });
-  }, [saveVersion, saveFailed, t]);
+  }, [saveVersion, t]);
 
   // Always-visible status indicator. Precedence:
   // read-only > saving > save-failed > unsaved > saved.
@@ -446,14 +460,14 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
               <Button
                 type="button"
                 variant="default"
-                disabled={!ready || uploadingVersion}
+                disabled={!ready || saving}
                 onClick={handleSave}
               >
-                {uploadingVersion ? <Spinner /> : <Save className="size-4" />}
+                {saving ? <Spinner /> : <Save className="size-4" />}
                 {t("sheet.save")}
               </Button>
             )}
-            <ToolButton label={t("versions.title")} onClick={() => setHistoryOpen(true)}>
+            <ToolButton label={t("versions.title")} disabled={saving} onClick={() => setHistoryOpen(true)}>
               <History className="size-4" />
             </ToolButton>
             <ToolButton
@@ -492,8 +506,15 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: 
         readOnly={!canEdit}
         onSwitched={() => {
           setHistoryOpen(false);
+          clearAutosaveTimers();
+          dirtyRef.current = false;
           setDirty(false);
-          void contentQuery.refetch();
+          if (userId)
+            clearSheetDraft(userId, entryId);
+          void contentQuery.refetch().then(({ data }) => {
+            if (!unmountedRef.current && data !== undefined)
+              setSelectedSnapshot({ content: data });
+          });
         }}
       />
     </>

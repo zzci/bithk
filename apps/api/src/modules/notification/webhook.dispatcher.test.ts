@@ -15,6 +15,8 @@ import {
   __webhookDispatcherIdle,
   enqueueEvent,
   enqueueTest,
+  startWebhookDispatcher,
+  stopWebhookDispatcher,
 } from "./webhook.dispatcher";
 import { createWebhook } from "./webhook.service";
 
@@ -34,7 +36,7 @@ interface Hit {
 }
 
 /** Loopback receiver whose responses are scripted per call. */
-function startReceiver(statuses: number[]): { url: string; hits: Hit[]; stop: () => void } {
+function startReceiver(statuses: number[], firstResponse?: Promise<void>, onRequest?: () => void): { url: string; hits: Hit[]; stop: () => void } {
   const hits: Hit[] = [];
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -45,6 +47,9 @@ function startReceiver(statuses: number[]): { url: string; hits: Hit[]; stop: ()
         headers[k] = v;
       });
       hits.push({ headers, body: await req.text() });
+      onRequest?.();
+      if (hits.length === 1)
+        await firstResponse;
       const status = statuses[Math.min(hits.length - 1, statuses.length - 1)] ?? 200;
       return new Response(status >= 300 && status < 400 ? null : "ok", { status, headers: status >= 300 && status < 400 ? { Location: "http://127.0.0.1:9/" } : {} });
     },
@@ -272,4 +277,75 @@ describe("webhook dispatcher", () => {
       rx.stop();
     }
   });
+});
+
+describe("webhook queue durability", () => {
+  test("never prunes pending deliveries behind a slow receiver", async () => {
+    const gate = Promise.withResolvers<void>();
+    const rx = startReceiver([200], gate.promise);
+    try {
+      const hook = await createWebhook(db, { name: "backlog", url: rx.url, events: ["*"], createdBy: "u" });
+      for (let i = 0; i < 202; i++)
+        await enqueueTest(deps(), hook.id, { id: "u", name: "User" });
+      gate.resolve();
+      await __webhookDispatcherIdle();
+      expect(rx.hits).toHaveLength(202);
+      expect(await deliveriesFor(hook.id)).toHaveLength(200);
+    }
+    finally {
+      gate.resolve();
+      await __webhookDispatcherIdle();
+      rx.stop();
+    }
+  });
+
+  test("resumes persisted pending deliveries once, keeping their delivery id", async () => {
+    const rx = startReceiver([200]);
+    try {
+      const hook = await createWebhook(db, { name: "recovery", url: rx.url, events: ["*"], createdBy: "u" });
+      await db.insert(webhookDeliveries).values({
+        id: "pending-before-restart",
+        webhookId: hook.id,
+        event: "issue.created",
+        eventId: "event-before-restart",
+        payload: "{}",
+        status: "pending",
+      }).run();
+      startWebhookDispatcher(deps());
+      startWebhookDispatcher(deps());
+      await __webhookDispatcherIdle();
+      expect(rx.hits).toHaveLength(1);
+      expect(rx.hits[0]?.headers["x-webhook-delivery"]).toBe("pending-before-restart");
+      expect((await deliveriesFor(hook.id))[0]?.status).toBe("success");
+    }
+    finally {
+      await __webhookDispatcherIdle();
+      rx.stop();
+    }
+  });
+});
+
+test("shutdown preserves unfinished and queued deliveries for startup", async () => {
+  const gate = Promise.withResolvers<void>();
+  const started = Promise.withResolvers<void>();
+  const rx = startReceiver([503, 200], gate.promise, () => started.resolve());
+  try {
+    const hook = await createWebhook(db, { name: "shutdown", url: rx.url, events: ["*"], createdBy: "u" });
+    const first = await enqueueTest(deps(), hook.id, { id: "u", name: "User" });
+    const second = await enqueueTest(deps(), hook.id, { id: "u", name: "User" });
+    await started.promise;
+    const stopping = stopWebhookDispatcher();
+    gate.resolve();
+    await stopping;
+    expect((await deliveriesFor(hook.id)).every(row => row.status === "pending")).toBe(true);
+    startWebhookDispatcher(deps());
+    await __webhookDispatcherIdle();
+    expect(rx.hits.map(hit => hit.headers["x-webhook-delivery"])).toEqual([first, first, second]);
+    expect((await deliveriesFor(hook.id)).every(row => row.status === "success")).toBe(true);
+  }
+  finally {
+    gate.resolve();
+    await __webhookDispatcherIdle();
+    rx.stop();
+  }
 });

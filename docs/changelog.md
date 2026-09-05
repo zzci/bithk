@@ -22,6 +22,26 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   browser by `hucre`, dynamically imported so its ~25 kB gzipped chunk is
   fetched only on an actual import.
 
+### Fixed
+
+- Publish Markdown edits before an immediate save or source-view switch so
+  newly typed document content is not lost (FIX-076).
+- Keep drive creation and view controls visible on narrow screens, and apply
+  immutable caching to Vite's generated hashed assets (FIX-076).
+- Exercise real API-backed login, document persistence, drive creation,
+  keyboard navigation, and cache behavior in browser acceptance CI (FIX-076).
+- Export backup tables and blob metadata from one isolated SQLite snapshot;
+  release the read transaction on completion, cancellation, or failure (FIX-075).
+- Preserve document drafts and their base versions across background refreshes.
+  Keep newer spreadsheet edits and recovery drafts when older saves finish,
+  isolate reopened editing sessions, and report failed saves accurately (FIX-075).
+- Drain active HTTP requests before forcing connections closed at the shutdown
+  deadline (FIX-075).
+- Retain pending webhook deliveries regardless of the history limit, and resume
+  interrupted work with stable delivery identifiers after startup (FIX-075).
+- Disable automatic mutation retries to avoid repeating committed writes when
+  their responses are lost (FIX-075).
+
 ## v0.4.0 — 2026-09-02
 
 ### Added

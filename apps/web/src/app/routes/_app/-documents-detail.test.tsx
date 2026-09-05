@@ -1,5 +1,5 @@
 import type * as ResourceModule from "@/shared/components/resource";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared/stores/auth";
@@ -275,5 +275,30 @@ describe("documentDetail — delete + uploads", () => {
     const input = container.querySelector("input[type=file]") as HTMLInputElement;
     await user.upload(input, new File([new Uint8Array(10)], "ok.txt"));
     expect(uploadMutate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("documentDetail — remote refresh while editing", () => {
+  it("preserves the draft and submits its original version after a refresh", async () => {
+    const user = userEvent.setup();
+    routeDoc(doc(), () => jsonResponse({ success: true, data: doc({ version: 4, title: "Local draft" }) }));
+    const { queryClient } = renderWithProviders(<DocumentDetail docId="d1" onDeleted={() => {}} />);
+    await screen.findAllByText("Spec");
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    const title = await screen.findByLabelText("Document title");
+    await user.clear(title);
+    await user.type(title, "Local draft");
+    await act(async () => {
+      queryClient.setQueryData(["documents", "detail", "d1"], doc({ version: 3, title: "Remote revision" }));
+    });
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    });
+    expect(screen.getByLabelText("Document title")).toHaveValue("Local draft");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(c => c[1]?.method === "PATCH");
+      expect(JSON.parse(String(patch?.[1]?.body))).toMatchObject({ title: "Local draft", version: 2 });
+    });
   });
 });

@@ -4,7 +4,7 @@
 // docs/develop/operations.md and the FTS5 index). Milkdown is built on
 // ProseMirror + remark; the editor's serialiser owns markdown I/O, so
 // we just feed it a string via `defaultValueCtx` and subscribe to
-// `listenerCtx.markdownUpdated` to get the next markdown back.
+// synchronous document updates to get the next markdown back before a save.
 //
 // Markdown shortcuts (`# ` → h1, `**foo**` → bold, ``` ``` → code block,
 // `[ ] ` → task list) work as you type because they are wired into the
@@ -15,7 +15,7 @@ import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import type { EditorView, NodeView } from "@milkdown/kit/prose/view";
 import type { JSX } from "react";
 
-import { defaultValueCtx, Editor, editorViewCtx, editorViewOptionsCtx, rootCtx } from "@milkdown/kit/core";
+import { defaultValueCtx, Editor, editorViewCtx, editorViewOptionsCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
 import { clipboard } from "@milkdown/kit/plugin/clipboard";
 import { history, redoCommand, undoCommand } from "@milkdown/kit/plugin/history";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
@@ -41,7 +41,8 @@ import {
   toggleStrikethroughCommand,
 } from "@milkdown/kit/preset/gfm";
 import { lift } from "@milkdown/kit/prose/commands";
-import { callCommand, replaceAll } from "@milkdown/kit/utils";
+import { Plugin } from "@milkdown/kit/prose/state";
+import { $prose, callCommand, replaceAll } from "@milkdown/kit/utils";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import {
   Bold,
@@ -608,12 +609,6 @@ function EditorBody({
       .config((ctx) => {
         ctx.set(rootCtx, root);
         ctx.set(defaultValueCtx, initialValue);
-        ctx.get(listenerCtx).markdownUpdated((_ctx, md) => {
-          if (md === lastEmittedRef.current)
-            return;
-          lastEmittedRef.current = md;
-          onChangeRef.current?.(md);
-        });
         // Register an interactive node view for `list_item` so GFM task
         // list checkboxes (`- [ ]` / `- [x]`) are clickable. The default
         // gfm preset extends the schema with a `checked` attr but only
@@ -632,6 +627,21 @@ function EditorBody({
       .use(gfm)
       .use(history)
       .use(listener)
+      // The listener plugin debounces markdown by 200ms. Forms must receive
+      // the current document before an immediate save or source-view switch.
+      .use($prose(ctx => new Plugin({
+        view: () => ({
+          update: (view, previous) => {
+            if (view.state.doc.eq(previous.doc))
+              return;
+            const md = ctx.get(serializerCtx)(view.state.doc);
+            if (md === lastEmittedRef.current)
+              return;
+            lastEmittedRef.current = md;
+            onChangeRef.current?.(md);
+          },
+        }),
+      })))
       // Parses pasted text/HTML through Milkdown's serializer + parser
       // so pasted markdown (e.g. `# Title`, `- list`, `**bold**`) is
       // converted to rich nodes instead of staying as plain text.

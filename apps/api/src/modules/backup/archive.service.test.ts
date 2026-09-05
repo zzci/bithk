@@ -11,7 +11,7 @@ import { blob, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { extract as tarExtract } from "tar-stream";
 import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
-import { users } from "@/modules/account/users/schema";
+import { userPreferences, users } from "@/modules/account/users/schema";
 import { cronBackupContribution } from "@/modules/cron/cron.backup";
 import { fileBackupContribution } from "@/modules/file/file.backup";
 import { legacyContentAddressedKey } from "@/modules/file/storage/key";
@@ -99,6 +99,48 @@ async function insertFileRow(id: string, sha256: string, size: number, driver: s
     VALUES (${id}, ${sha256}, ${size}, 'application/octet-stream', ${driver}, ${legacyContentAddressedKey(sha256)}, 1, ${uploadedBy})
   `);
 }
+
+describe("writeArchiveV2 — consistent snapshot", () => {
+  test("releases its read snapshot after cancellation", async () => {
+    await expect(writeArchiveV2({
+      db,
+      modules: ["users"],
+      stagingDir,
+      appName: "app",
+      isCancelled: () => true,
+    })).rejects.toBeInstanceOf(ExportCancelledError);
+    await seedUser(db, "user");
+    expect(db.$client.query("PRAGMA wal_checkpoint(TRUNCATE)").get()).toMatchObject({ busy: 0 });
+  });
+
+  test.each(["file", "memory"])("excludes later parent/child commits from a %s snapshot", async (storage) => {
+    if (storage === "memory") {
+      db.close();
+      db = await createDb(":memory:");
+    }
+    let inserted = false;
+    const { archivePath } = await writeArchiveV2({
+      db,
+      modules: ["users"],
+      stagingDir,
+      appName: "app",
+      onProgress: ({ tablesDone }) => {
+        if (tablesDone !== 1 || inserted)
+          return;
+        inserted = true;
+        db.transaction((tx) => {
+          tx.insert(users).values({ id: "late", oauthSub: "late", username: "late", name: "Late", email: "late@test.com" }).run();
+          tx.insert(userPreferences).values({ userId: "late", key: "theme", value: "dark" }).run();
+        });
+      },
+    });
+    const entries = await readArchive(archivePath);
+    expect(inserted).toBe(true);
+    expect(parseNdjson(entries.find(e => e.name === "data/users.ndjson")!)).toEqual([]);
+    expect(parseNdjson(entries.find(e => e.name === "data/user_preferences.ndjson")!)).toEqual([]);
+    expect(await db.select().from(userPreferences).all()).toHaveLength(1);
+  });
+});
 
 describe("writeArchiveV2 — manifest", () => {
   test("manifest.json is the first entry and describes journal, modules, tables", async () => {

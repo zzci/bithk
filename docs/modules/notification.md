@@ -98,9 +98,11 @@ never followed. The URL passes the cron `http-request` SSRF gate on create /
 update and again per attempt (`HTTP_ACTION_ALLOW_PRIVATE` opens loopback /
 private ranges). A terminal failure bumps the webhook's
 `consecutive_failures` (reset on the next success) and the list shows the
-last outcome. Each webhook keeps its latest 200 deliveries. The queue is
-process-local: work pending at shutdown is stopped after the in-flight
-attempt.
+last outcome. Each webhook keeps its latest 200 completed deliveries;
+pending deliveries are never pruned. Startup resumes persisted pending work
+in creation order. Interrupted attempts retain their delivery identifier for
+at-least-once delivery; receivers should deduplicate `X-Webhook-Delivery`
+because a crash after receipt but before acknowledgement can cause a retry.
 
 ## Database
 

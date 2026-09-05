@@ -3,7 +3,7 @@ import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { AuditEvent } from "@/modules/audit/audit.service";
 import type { Logger } from "@/shared/lib/logger";
-import { desc, eq, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, notInArray, sql } from "drizzle-orm";
 import { onAuditEvent } from "@/modules/audit/audit.service";
 import { resolveTarget } from "@/modules/cron/actions/http-request/executor";
 import { NotFoundError } from "@/shared/lib/errors";
@@ -65,6 +65,7 @@ interface Job {
 }
 
 const lanes = new Map<string, Promise<void>>();
+const scheduled = new Set<string>();
 let active = 0;
 let stopping = false;
 const idleWaiters: (() => void)[] = [];
@@ -77,6 +78,9 @@ function settleIdle(): void {
 }
 
 function schedule(job: Job): void {
+  if (stopping || scheduled.has(job.deliveryId))
+    return;
+  scheduled.add(job.deliveryId);
   const prev = lanes.get(job.webhookId) ?? Promise.resolve();
   active++;
   const next: Promise<void> = prev
@@ -85,6 +89,7 @@ function schedule(job: Job): void {
       job.deps.logger.error({ err, deliveryId: job.deliveryId }, "webhook delivery crashed");
     })
     .finally(() => {
+      scheduled.delete(job.deliveryId);
       active--;
       if (lanes.get(job.webhookId) === next)
         lanes.delete(job.webhookId);
@@ -156,6 +161,8 @@ async function attempt(job: Job, hook: WebhookRow, deliveryId: string, event: st
 }
 
 async function runDelivery(job: Job): Promise<void> {
+  if (stopping)
+    return;
   const { db, logger } = job.deps;
   const delivery = await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.id, job.deliveryId)).get();
   const hook = await getWebhookRow(db, job.webhookId);
@@ -174,6 +181,10 @@ async function runDelivery(job: Job): Promise<void> {
     if (n < MAX_DELIVERY_ATTEMPTS)
       await sleep(retryDelaysMs[n - 1] ?? retryDelaysMs[retryDelaysMs.length - 1] ?? 0);
   }
+
+  // Interrupted work stays pending for the next startup, with the same id.
+  if (stopping && !outcome.ok)
+    return;
 
   const finishedAt = new Date().toISOString();
   const status = outcome.ok ? "success" : "failed";
@@ -200,11 +211,11 @@ async function pruneDeliveries(db: AppDatabase, webhookId: string): Promise<void
   const keep = db
     .select({ id: webhookDeliveries.id })
     .from(webhookDeliveries)
-    .where(eq(webhookDeliveries.webhookId, webhookId))
+    .where(and(eq(webhookDeliveries.webhookId, webhookId), ne(webhookDeliveries.status, "pending")))
     .orderBy(desc(webhookDeliveries.createdAt), desc(webhookDeliveries.id))
     .limit(DELIVERIES_KEPT_PER_WEBHOOK);
   await db.delete(webhookDeliveries)
-    .where(sql`${webhookDeliveries.webhookId} = ${webhookId} AND ${notInArray(webhookDeliveries.id, keep)}`)
+    .where(and(eq(webhookDeliveries.webhookId, webhookId), ne(webhookDeliveries.status, "pending"), notInArray(webhookDeliveries.id, keep)))
     .run();
 }
 
@@ -267,6 +278,13 @@ let unsubscribe: (() => void) | null = null;
 export function startWebhookDispatcher(deps: WebhookDispatcherDeps): void {
   unsubscribe?.();
   stopping = false;
+  const pending = deps.db.select({ id: webhookDeliveries.id, webhookId: webhookDeliveries.webhookId })
+    .from(webhookDeliveries)
+    .where(eq(webhookDeliveries.status, "pending"))
+    .orderBy(asc(webhookDeliveries.createdAt), asc(webhookDeliveries.id))
+    .all();
+  for (const row of pending)
+    schedule({ deps, deliveryId: row.id, webhookId: row.webhookId });
   unsubscribe = onAuditEvent(async (event, ctx) => {
     await enqueueEvent({ db: ctx.db, logger: ctx.logger, config: deps.config }, event);
   });
@@ -295,6 +313,7 @@ export function __resetWebhookDispatcherForTests(): void {
   unsubscribe?.();
   unsubscribe = null;
   lanes.clear();
+  scheduled.clear();
   active = 0;
   stopping = false;
   idleWaiters.length = 0;

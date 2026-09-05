@@ -34,6 +34,7 @@ import { asc, getTableColumns, getTableName, gt, sql } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { pack as tarPack } from "tar-stream";
 import { BUILD_INFO } from "@/build-info";
+import { createReadSnapshot } from "@/db";
 import { ROOT_DIR } from "@/root";
 import { getDataModules, getTablesForModules, resolveModulesWithDeps } from "./registry";
 import { redactSecretFields } from "./secret-fields";
@@ -418,6 +419,16 @@ async function packGzippedTar(
 }
 
 export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<WriteArchiveV2Result> {
+  const db = createReadSnapshot(opts.db);
+  try {
+    return await writeArchiveSnapshot({ ...opts, db });
+  }
+  finally {
+    db.close();
+  }
+}
+
+async function writeArchiveSnapshot(opts: WriteArchiveV2Options): Promise<WriteArchiveV2Result> {
   const { db, stagingDir } = opts;
   const redacted = opts.redacted === true;
   const isCancelled = opts.isCancelled ?? (() => false);
@@ -491,6 +502,9 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
     for (const row of rows)
       expectedBlobs.push({ sha256: row.sha256, size: row.size, storageKey: row.storage_key, storageDriver: row.storage_driver });
   }
+
+  // All database reads are staged; release WAL pages before compression.
+  db.close();
 
   // 3. Manifest — always the first tar entry, so the importer can validate
   //    format/version/caps before reading any data.

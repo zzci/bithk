@@ -18,11 +18,8 @@ export const queryClient = new QueryClient({
       },
     },
     mutations: {
-      retry: (count, err) => {
-        if (err instanceof HttpError && err.status >= 400 && err.status < 500)
-          return false;
-        return count < 1;
-      },
+      // A lost response does not mean the server rolled back a write.
+      retry: false,
     },
   },
 });

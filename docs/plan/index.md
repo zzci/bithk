@@ -1,6 +1,8 @@
 # Plans
 
 - [x] [PLAN-115 Excel workbook import via hucre, original file preserved](PLAN-115.md)
+- [x] [PLAN-114 Product acceptance follow-up](PLAN-114.md)
+- [x] [PLAN-113 Repair persistence and recovery audit findings](PLAN-113.md)
 
 | ID | Title | Status | Updated |
 | --- | --- | --- | --- |

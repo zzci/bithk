@@ -11,6 +11,7 @@ import { stopCron } from "./modules/cron";
 import { stopFileGcSweep } from "./modules/file";
 import { stopNotifications } from "./modules/notification";
 import { acquirePidLock, releasePidLock } from "./pid-lock";
+import { drainHttpServer } from "./shared/lib/http-shutdown";
 import { requestBodyLimitBytes } from "./shared/lib/upload-limits";
 
 (async () => {
@@ -69,16 +70,7 @@ import { requestBodyLimitBytes } from "./shared/lib/upload-limits";
     // then hard-stop in case the soft stop didn't finish.
     const stopServer = opts.fatal
       ? () => server.stop(true)
-      : async () => {
-        await Promise.race([
-          server.stop(true),
-          new Promise<void>(resolve => setTimeout(resolve, 25_000).unref?.()),
-        ]);
-        try {
-          server.stop(false);
-        }
-        catch {}
-      };
+      : () => drainHttpServer(server);
 
     await safe("server.stop", stopServer, silent);
     await safe("stopLodePrepareWatcher", () => lodePrepare?.stop(), silent);

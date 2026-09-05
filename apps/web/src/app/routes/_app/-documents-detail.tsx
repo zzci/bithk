@@ -120,7 +120,7 @@ export function DocumentDetail({
   const seededVersionRef = useRef<number | null>(null);
   useEffect(() => {
     const data = docQuery.data;
-    if (!data)
+    if (!data || editing)
       return;
     if (seededVersionRef.current === data.version)
       return;
@@ -131,7 +131,7 @@ export function DocumentDetail({
       content: data.content ?? "",
       tags: parseTags(data.tags),
     });
-  }, [docQuery.data]);
+  }, [docQuery.data, editing]);
 
   if (docQuery.isLoading)
     return <CenteredHint>{t("common.loading")}</CenteredHint>;
@@ -178,7 +178,7 @@ export function DocumentDetail({
     updateMutation.mutate(
       {
         id: doc.id,
-        version: doc.version,
+        version: seededVersionRef.current ?? doc.version,
         title: draft.title.trim(),
         content: draft.content,
         tags: draft.tags,

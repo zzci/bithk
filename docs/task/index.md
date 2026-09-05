@@ -1,6 +1,8 @@
 # Tasks
 
 - [x] [**FEAT-061 Import Excel workbooks as editable spreadsheets while keeping the original file**](FEAT-061.md) `P2`
+- [x] [**FIX-076 Validate product flows and repair acceptance defects**](FIX-076.md) `P1`
+- [x] [**FIX-075 Repair audit findings in persistence and recovery**](FIX-075.md) `P1`
 
 | ID | Title | Plan | Status | Updated |
 | --- | --- | --- | --- | --- |
