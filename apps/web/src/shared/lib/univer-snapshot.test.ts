@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { csvToUniverSnapshotJson, emptyUniverSnapshotJson, parseCsv } from "./univer-snapshot";
+import { csvToUniverSnapshotJson, emptyUniverSnapshotJson, parseCsv, workbookToUniverSnapshotJson } from "./univer-snapshot";
 
 interface ParsedSnapshot {
   id: string;
@@ -12,7 +12,7 @@ interface ParsedSnapshot {
     name: string;
     rowCount: number;
     columnCount: number;
-    cellData: Record<string, Record<string, { v: string }>>;
+    cellData: Record<string, Record<string, { v: string | number | boolean; t?: number }>>;
   }>;
 }
 
@@ -103,5 +103,76 @@ describe("csvToUniverSnapshotJson", () => {
   it("throws on empty or whitespace-only input", () => {
     expect(() => csvToUniverSnapshotJson("")).toThrow();
     expect(() => csvToUniverSnapshotJson("   \n  ")).toThrow();
+  });
+});
+
+describe("workbookToUniverSnapshotJson", () => {
+  it("keeps every source tab, in order, with its name", () => {
+    const snapshot = parse(workbookToUniverSnapshotJson([
+      { name: "Summary", rows: [["a"]] },
+      { name: "Detail", rows: [["b"]] },
+    ]));
+
+    expect(snapshot.sheetOrder).toHaveLength(2);
+    const [first, second] = snapshot.sheetOrder.map(id => snapshot.sheets[id]!);
+    expect(first!.name).toBe("Summary");
+    expect(second!.name).toBe("Detail");
+    expect(first!.id).toBe(snapshot.sheetOrder[0]);
+    expect(second!.id).toBe(snapshot.sheetOrder[1]);
+  });
+
+  it("tags numbers and booleans with their Univer cell type", () => {
+    const sheet = firstSheet(parse(workbookToUniverSnapshotJson([
+      { name: "S", rows: [["text", 42, true]] },
+    ])));
+
+    expect(sheet.cellData[0]).toEqual({
+      0: { v: "text" },
+      1: { v: 42, t: 2 },
+      2: { v: true, t: 3 },
+    });
+  });
+
+  it("renders dates as UTC text, dropping a zero time component", () => {
+    const sheet = firstSheet(parse(workbookToUniverSnapshotJson([
+      { name: "S", rows: [[new Date(Date.UTC(2026, 8, 5)), new Date(Date.UTC(2026, 8, 5, 13, 7, 9))]] },
+    ])));
+
+    expect(sheet.cellData[0]![0]!.v).toBe("2026-09-05");
+    expect(sheet.cellData[0]![1]!.v).toBe("2026-09-05 13:07:09");
+  });
+
+  it("omits blank cells but still sizes the sheet to the dense rectangle", () => {
+    const sheet = firstSheet(parse(workbookToUniverSnapshotJson([
+      { name: "S", rows: [["a", null, ""], [null, null, null]] },
+    ])));
+
+    expect(sheet.rowCount).toBe(2);
+    expect(sheet.columnCount).toBe(3);
+    expect(sheet.cellData).toEqual({ 0: { 0: { v: "a" } } });
+  });
+
+  it("gives an empty tab the default blank-sheet dimensions", () => {
+    const snapshot = parse(workbookToUniverSnapshotJson([
+      { name: "Data", rows: [["a"]] },
+      { name: "Chart", rows: [] },
+    ]));
+
+    const chart = snapshot.sheets[snapshot.sheetOrder[1]!]!;
+    expect(chart.name).toBe("Chart");
+    expect(chart.rowCount).toBe(100);
+    expect(chart.columnCount).toBe(26);
+    expect(chart.cellData).toEqual({});
+  });
+
+  it("applies the workbook name and falls back to a default", () => {
+    expect(parse(workbookToUniverSnapshotJson([{ name: "S", rows: [["a"]] }], "Book")).name).toBe("Book");
+    expect(parse(workbookToUniverSnapshotJson([{ name: "S", rows: [["a"]] }], "  ")).name).toBe("Untitled");
+  });
+
+  it("throws when the workbook carries no cells at all", () => {
+    expect(() => workbookToUniverSnapshotJson([])).toThrow();
+    expect(() => workbookToUniverSnapshotJson([{ name: "S", rows: [] }])).toThrow();
+    expect(() => workbookToUniverSnapshotJson([{ name: "S", rows: [[null, ""]] }])).toThrow();
   });
 });

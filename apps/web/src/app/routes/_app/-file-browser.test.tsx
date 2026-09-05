@@ -1,13 +1,17 @@
 import type { DriveFileListSurfaceActions } from "@/shared/components/file";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import type { DisplayItem } from "@/shared/lib/file";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useFileUploadStore } from "@/shared/components/file";
 import { UNIVER_SHEET_MIME } from "@/shared/lib/api/drive";
+import { WORKBOOK_ACCEPT } from "@/shared/lib/workbook-import";
 import { renderWithProviders } from "@/test/utils";
 
-const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }));
+const { navigateMock, toastError } = vi.hoisted(() => ({ navigateMock: vi.fn(), toastError: vi.fn() }));
+
+vi.mock("sonner", () => ({ toast: { error: toastError } }));
 
 // Spreadsheets now open a state-driven dialog (no route navigation); the
 // useNavigate stub stays as a guard so any co-imported module that resolves it
@@ -79,6 +83,8 @@ const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
   navigateMock.mockReset();
+  toastError.mockReset();
+  useFileUploadStore.setState({ tasks: [] });
   fetchMock.mockReset();
   globalThis.fetch = fetchMock;
   fetchMock.mockResolvedValue(jsonResponse({
@@ -132,5 +138,79 @@ describe("fileBrowser internal preview", () => {
     // Wait for the listing to render, then assert the toggle removed the box.
     await screen.findByText("open:report.pdf");
     expect(screen.queryByLabelText("search")).not.toBeInTheDocument();
+  });
+});
+
+describe("fileBrowser excel import", () => {
+  // The list query and the spreadsheet POST share one mock, so route by URL and
+  // hand back a fresh Response per call (a Response body reads only once).
+  function routeFetch(onSpreadsheet?: () => void) {
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.includes("/drive/entries/spreadsheet")) {
+        onSpreadsheet?.();
+        return Promise.resolve(jsonResponse({
+          success: true,
+          data: fileEntry("new", "Budget.sheet", UNIVER_SHEET_MIME),
+        }));
+      }
+      return Promise.resolve(jsonResponse({ success: true, data: [] }));
+    });
+  }
+
+  async function pickWorkbook(filename: string, bytes: Uint8Array) {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<FileBrowser ownerType="user" ownerId="self" />);
+    const input = container.querySelector<HTMLInputElement>(`input[accept="${WORKBOOK_ACCEPT}"]`);
+    expect(input).not.toBeNull();
+    await user.upload(input!, new File([bytes as BlobPart], filename));
+  }
+
+  function spreadsheetPayload() {
+    const call = fetchMock.mock.calls.find(([url]) => String(url).includes("/drive/entries/spreadsheet"));
+    return call ? JSON.parse(String((call[1] as RequestInit).body)) as { name: string; content: string } : null;
+  }
+
+  it("uploads the original workbook and creates a converted sheet beside it", async () => {
+    const { writeXlsx } = await import("hucre/xlsx");
+    const bytes = await writeXlsx({
+      sheets: [
+        { name: "Summary", rows: [["Item", "Qty"], ["Widget", 3]] },
+        { name: "Detail", rows: [["ok", true]] },
+      ],
+    });
+    routeFetch();
+
+    await pickWorkbook("Budget.xlsx", bytes);
+
+    // Leg 1: the original file goes onto the upload queue untouched.
+    await waitFor(() => {
+      expect(useFileUploadStore.getState().tasks.map(task => task.name)).toContain("Budget.xlsx");
+    });
+
+    // Leg 2: a sibling `.sheet` entry carrying the converted snapshot.
+    await waitFor(() => expect(spreadsheetPayload()).not.toBeNull());
+    const payload = spreadsheetPayload()!;
+    expect(payload.name).toBe("Budget.sheet");
+
+    const snapshot = JSON.parse(payload.content) as {
+      name: string;
+      sheetOrder: string[];
+      sheets: Record<string, { name: string; cellData: Record<string, Record<string, { v: unknown }>> }>;
+    };
+    expect(snapshot.name).toBe("Budget");
+    expect(snapshot.sheetOrder).toHaveLength(2);
+    expect(snapshot.sheets[snapshot.sheetOrder[0]!]!.name).toBe("Summary");
+    expect(snapshot.sheets[snapshot.sheetOrder[0]!]!.cellData[1]![1]!.v).toBe(3);
+  });
+
+  it("uploads nothing and creates nothing when the workbook cannot be read", async () => {
+    routeFetch();
+
+    await pickWorkbook("Broken.xlsx", new TextEncoder().encode("not a workbook"));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Could not import this workbook."));
+    expect(spreadsheetPayload()).toBeNull();
+    expect(useFileUploadStore.getState().tasks).toHaveLength(0);
   });
 });

@@ -1,5 +1,7 @@
 # Tasks
 
+- [x] [**FEAT-061 Import Excel workbooks as editable spreadsheets while keeping the original file**](FEAT-061.md) `P2`
+
 | ID | Title | Plan | Status | Updated |
 | --- | --- | --- | --- | --- |
 | [FEAT-001](FEAT-001.md) | Drive page assembly, i18n, create-owner wiring, e2e | [PLAN-001](../plan/PLAN-001.md) | Done | 2026-05-21 |
@@ -231,3 +233,4 @@
 | [FEAT-060](FEAT-060.md) | Webhook subscriptions with signed, retried deliveries | [PLAN-112](../plan/PLAN-112.md) | Completed | 2026-09-01 |
 | [TEST-003](TEST-003.md) | e2e specs still target the pre-PLAN-108 ship and module surface | [PLAN-111](../plan/PLAN-111.md) | Completed | 2026-09-01 |
 | [CHORE-013](CHORE-013.md) | Delete the v1 JSON backup services and port their test harness to v2 | - | Completed | 2026-09-02 |
+| [FEAT-061](FEAT-061.md) | Import Excel workbooks as editable spreadsheets while keeping the original file | [PLAN-115](../plan/PLAN-115.md) | Completed | 2026-09-05 |

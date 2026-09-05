@@ -11,7 +11,16 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
-_Nothing yet._
+### Added
+
+- Drive "Import Excel": pick an `.xlsx` / `.xlsb` / `.xls` / `.ods` workbook
+  and get two entries — the original file, uploaded untouched, plus a
+  converted, editable Univer spreadsheet beside it (FEAT-061). Every source
+  tab is kept in order with its values and value types; the conversion is
+  values-only (formulas arrive as their cached result, styles and widths are
+  dropped), which is why the original is preserved. Reading is done in the
+  browser by `hucre`, dynamically imported so its ~25 kB gzipped chunk is
+  fetched only on an actual import.
 
 ## v0.4.0 — 2026-09-02
 

@@ -146,6 +146,7 @@ export function FileToolbar({
   onCreateTextFile,
   onCreateSpreadsheet,
   onImportCsv,
+  onImportExcel,
   onImportFromDrive,
   extraActions,
 }: FileToolbarProps) {
@@ -217,9 +218,9 @@ export function FileToolbar({
         </div>
       )}
 
-      <div className="scrollbar-hide overflow-x-auto px-4 pb-1">
-        <div className="flex min-h-10 w-max min-w-full items-center gap-3">
-          <div className="flex shrink-0 items-center gap-2">
+      <div className="px-4 pb-1">
+        <div className="flex min-h-10 min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="flex min-w-0 max-w-full items-center gap-2 overflow-x-auto">
             {variant === "full" && filterBar}
           </div>
 
@@ -293,6 +294,12 @@ export function FileToolbar({
                             <DropdownMenuItem onClick={onImportCsv}>
                               <FileUp className="mr-2 size-4" />
                               {t("browser.importCsv")}
+                            </DropdownMenuItem>
+                          )}
+                          {onImportExcel && (
+                            <DropdownMenuItem onClick={onImportExcel}>
+                              <FileUp className="mr-2 size-4" />
+                              {t("browser.importExcel")}
                             </DropdownMenuItem>
                           )}
                           {ownerType === "project" && onImportFromDrive && (

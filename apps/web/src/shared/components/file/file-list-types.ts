@@ -83,6 +83,7 @@ export interface DriveFileListSurfaceActions {
   readonly onCreateTextFile?: (kind: "markdown" | "text") => void;
   readonly onCreateSpreadsheet?: () => void;
   readonly onImportCsv?: () => void;
+  readonly onImportExcel?: () => void;
   readonly getCustomActions?: (item: DisplayItem) => FileListAction[];
 }
 
@@ -190,6 +191,7 @@ export interface FileToolbarProps {
   readonly onCreateTextFile?: ((kind: "markdown" | "text") => void) | undefined;
   readonly onCreateSpreadsheet?: (() => void) | undefined;
   readonly onImportCsv?: (() => void) | undefined;
+  readonly onImportExcel?: (() => void) | undefined;
   readonly onImportFromDrive?: (() => void) | undefined;
   readonly extraActions?: ReactNode | undefined;
 }
@@ -249,6 +251,7 @@ export interface FileListProps {
   readonly onCreateTextFile?: ((kind: "markdown" | "text") => void) | undefined;
   readonly onCreateSpreadsheet?: (() => void) | undefined;
   readonly onImportCsv?: (() => void) | undefined;
+  readonly onImportExcel?: (() => void) | undefined;
   readonly getCustomActions?: ((item: DisplayItem) => FileListAction[]) | undefined;
 }
 

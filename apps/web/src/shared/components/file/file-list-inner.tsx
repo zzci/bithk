@@ -76,6 +76,7 @@ export function FileList({
   onCreateTextFile,
   onCreateSpreadsheet,
   onImportCsv,
+  onImportExcel,
   getCustomActions,
 }: FileListProps) {
   const { t } = useTranslation("drive");
@@ -89,7 +90,7 @@ export function FileList({
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const [draggingEntryIds, setDraggingEntryIds] = useState<Set<string> | null>(null);
 
-  const blankContextMenu = onCreateTextFile || onCreateFolder || onUploadClick || onCreateSpreadsheet || onImportCsv
+  const blankContextMenu = onCreateTextFile || onCreateFolder || onUploadClick || onCreateSpreadsheet || onImportCsv || onImportExcel
     ? (
         <ContextMenuContent>
           {onUploadClick && (
@@ -126,6 +127,12 @@ export function FileList({
             <ContextMenuItem onClick={onImportCsv}>
               <FileUp className="mr-2 size-4" />
               {t("browser.importCsv")}
+            </ContextMenuItem>
+          )}
+          {onImportExcel && (
+            <ContextMenuItem onClick={onImportExcel}>
+              <FileUp className="mr-2 size-4" />
+              {t("browser.importExcel")}
             </ContextMenuItem>
           )}
         </ContextMenuContent>

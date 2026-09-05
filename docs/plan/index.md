@@ -1,5 +1,7 @@
 # Plans
 
+- [x] [PLAN-115 Excel workbook import via hucre, original file preserved](PLAN-115.md)
+
 | ID | Title | Status | Updated |
 | --- | --- | --- | --- |
 | [PLAN-001](PLAN-001.md) | Drive frontend parity pass | Done | 2026-05-21 |
@@ -111,3 +113,4 @@
 | [PLAN-110](PLAN-110.md) | Project documents: the documents module as a project section | Deferred | 2026-08-28 |
 | [PLAN-111](PLAN-111.md) | Remediate the 2026-09-01 repository audit findings | Completed | 2026-09-01 |
 | [PLAN-112](PLAN-112.md) | SMTP email delivery and webhook subscriptions | Completed | 2026-09-01 |
+| [PLAN-115](PLAN-115.md) | Excel workbook import via hucre, original file preserved | Completed | 2026-09-05 |

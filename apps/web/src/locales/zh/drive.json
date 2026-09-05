@@ -31,6 +31,7 @@
     "newMarkdownFile": "新建 Markdown 文件",
     "newSpreadsheet": "新建表格",
     "importCsv": "导入 CSV",
+    "importExcel": "导入 Excel",
     "importFromDrive": "从网盘导入",
     "create": "创建",
     "createButton": "新建",
@@ -218,5 +219,10 @@
   "csv": {
     "importError": "无法导入该 CSV 文件。",
     "empty": "CSV 文件为空。"
+  },
+  "excel": {
+    "importError": "无法导入该工作簿。",
+    "empty": "工作簿中没有任何单元格内容。",
+    "tooLarge": "该工作簿过大，无法导入。"
   }
 }

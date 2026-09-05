@@ -15,6 +15,7 @@ import type {
 } from "@/shared/components/file";
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
 import type { DisplayItem } from "@/shared/lib/file";
+import type { WorkbookSheetInput } from "@/shared/lib/univer-snapshot";
 import { FolderInput, History, Trash2, Upload } from "lucide-react";
 
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
@@ -25,8 +26,9 @@ import { DriveVersionHistoryDialog } from "@/shared/components/file/version-hist
 import { useShare } from "@/shared/components/share";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
-
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
+
+import { useUploadLimits } from "@/shared/hooks/use-upload-limits";
 import {
   downloadDriveEntry,
   isUniverSheetEntry,
@@ -43,8 +45,9 @@ import {
   useUpdateDriveEntry,
 } from "@/shared/lib/api/drive";
 import { entryToDisplayItem } from "@/shared/lib/file";
-import { csvToUniverSnapshotJson, emptyUniverSnapshotJson } from "@/shared/lib/univer-snapshot";
+import { csvToUniverSnapshotJson, emptyUniverSnapshotJson, workbookToUniverSnapshotJson } from "@/shared/lib/univer-snapshot";
 import { cn } from "@/shared/lib/utils";
+import { readWorkbookSheets, WORKBOOK_ACCEPT, workbookBaseName } from "@/shared/lib/workbook-import";
 import {
   CreateFolderDialog,
   CreateSpreadsheetDialog,
@@ -158,6 +161,7 @@ export function FileBrowser({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const csvInputRef = useRef<HTMLInputElement | null>(null);
+  const excelInputRef = useRef<HTMLInputElement | null>(null);
 
   const owner = useMemo(() => ({ ownerType, ownerId }), [ownerType, ownerId]);
   const parentEntryId = folderStack.at(-1)?.id ?? null;
@@ -173,6 +177,7 @@ export function FileBrowser({
   const createTextFile = useCreateTextFile();
   const createSpreadsheet = useCreateSpreadsheet();
   const enqueueUploads = useFileUploader();
+  const { maxFileSize } = useUploadLimits();
   const updateEntry = useUpdateDriveEntry();
   const trashEntry = useTrashDriveEntry();
   const restoreEntry = useRestoreDriveEntry();
@@ -263,6 +268,52 @@ export function FileBrowser({
       toast.error(t("csv.importError"));
       return;
     }
+    createSpreadsheet.mutate(
+      { name: `${baseName}.sheet`, content, parentEntryId, ownerType, ownerId },
+      { onSuccess: entry => handlePreview?.(entry, true, canManage) },
+    );
+  };
+
+  // Import an Excel/ODS workbook: the picked file is uploaded untouched, then
+  // converted to a sibling Univer sheet. Two entries result — the original
+  // workbook and an editable `.sheet` — because the conversion carries values
+  // only (formulas arrive as their cached result; styles and widths are lost),
+  // so the source file has to stay the record of truth.
+  //
+  // `hucre` is imported dynamically: its reader is ~34 KB gzipped and would
+  // otherwise be dead weight in the file-list bundle for everyone who never
+  // imports a workbook.
+  const onExcelInputChange = async (files: File[]) => {
+    const file = files[0];
+    if (!file)
+      return;
+    // Parsing happens on the main thread, so refuse anything the API would
+    // reject anyway rather than freezing the tab first and failing after.
+    if (file.size > maxFileSize) {
+      toast.error(t("excel.tooLarge"));
+      return;
+    }
+    const baseName = workbookBaseName(file.name);
+
+    let sheets: readonly WorkbookSheetInput[];
+    try {
+      sheets = await readWorkbookSheets(file.name, new Uint8Array(await file.arrayBuffer()));
+    }
+    catch {
+      toast.error(t("excel.importError"));
+      return;
+    }
+
+    let content: string;
+    try {
+      content = workbookToUniverSnapshotJson(sheets, baseName);
+    }
+    catch {
+      toast.error(t("excel.empty"));
+      return;
+    }
+
+    uploadFiles([file]);
     createSpreadsheet.mutate(
       { name: `${baseName}.sheet`, content, parentEntryId, ownerType, ownerId },
       { onSuccess: entry => handlePreview?.(entry, true, canManage) },
@@ -494,6 +545,7 @@ export function FileBrowser({
     onCreateTextFile: kind => setDialog({ type: "text", markdown: kind === "markdown" }),
     onCreateSpreadsheet: () => setDialog({ type: "spreadsheet" }),
     onImportCsv: () => csvInputRef.current?.click(),
+    onImportExcel: () => excelInputRef.current?.click(),
     getCustomActions: inTrash ? getTrashCustomActions : getCustomActions,
   };
 
@@ -532,6 +584,11 @@ export function FileBrowser({
         inputRef={csvInputRef}
         acceptOverride=".csv,text/csv"
         onSelect={files => void onCsvInputChange(files)}
+      />
+      <FileUploadButton
+        inputRef={excelInputRef}
+        acceptOverride={WORKBOOK_ACCEPT}
+        onSelect={files => void onExcelInputChange(files)}
       />
 
       <DriveFileListSurface

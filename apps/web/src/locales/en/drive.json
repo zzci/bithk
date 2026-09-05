@@ -31,6 +31,7 @@
     "newMarkdownFile": "New Markdown file",
     "newSpreadsheet": "New spreadsheet",
     "importCsv": "Import CSV",
+    "importExcel": "Import Excel",
     "importFromDrive": "Import from Drive",
     "create": "Create",
     "createButton": "New",
@@ -218,5 +219,10 @@
   "csv": {
     "importError": "Could not import this CSV file.",
     "empty": "The CSV file is empty."
+  },
+  "excel": {
+    "importError": "Could not import this workbook.",
+    "empty": "The workbook has no cell values.",
+    "tooLarge": "This workbook is too large to import."
   }
 }

@@ -285,6 +285,7 @@ export function DriveFileListSurface({
               onCreateTextFile={resolvedCapabilities.createTextFile ? actions.onCreateTextFile : undefined}
               onCreateSpreadsheet={resolvedCapabilities.createTextFile ? actions.onCreateSpreadsheet : undefined}
               onImportCsv={resolvedCapabilities.createTextFile ? actions.onImportCsv : undefined}
+              onImportExcel={resolvedCapabilities.createTextFile ? actions.onImportExcel : undefined}
               onImportFromDrive={toolbar.onImportFromDrive}
               extraActions={toolbar.extraActions}
             />
@@ -331,6 +332,7 @@ export function DriveFileListSurface({
                 onCreateTextFile={resolvedCapabilities.createTextFile ? actions.onCreateTextFile : undefined}
                 onCreateSpreadsheet={resolvedCapabilities.createTextFile ? actions.onCreateSpreadsheet : undefined}
                 onImportCsv={resolvedCapabilities.createTextFile ? actions.onImportCsv : undefined}
+                onImportExcel={resolvedCapabilities.createTextFile ? actions.onImportExcel : undefined}
                 getCustomActions={actions.getCustomActions}
               />
             )}
