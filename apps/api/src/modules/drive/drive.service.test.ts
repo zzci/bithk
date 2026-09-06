@@ -21,6 +21,7 @@ import { AppError } from "@/shared/lib/errors";
 import {
   __setPurgeFailpointForTests,
   buildDriveEntryDownloadResponse,
+  convertDriveEntryToSheet,
   createDriveFolder,
   createDriveSpreadsheet,
   createDriveTextFile,
@@ -490,5 +491,104 @@ describe("throwDuplicateName matches the specific name constraint (FIX-AUDIT-019
   test("walks the cause chain to find a nested name violation", () => {
     const wrapped = new Error("Failed query: insert into drive_entries", { cause: new Error(nameViolation) });
     expect(() => throwDuplicateName(wrapped)).toThrow(AppError);
+  });
+});
+
+describe("convertDriveEntryToSheet", () => {
+  async function workbookBytes() {
+    const { writeXlsx } = await import("hucre/xlsx");
+    return writeXlsx({
+      sheets: [
+        { name: "Summary", rows: [["Item", "Qty"], ["Widget", 3]] },
+        { name: "Detail", rows: [["ok", true]] },
+      ],
+    });
+  }
+
+  async function seedWorkbook(owner: string, name = "Budget.xlsx", parentEntryId?: string) {
+    const bytes = await workbookBytes();
+    return uploadDriveFile(db, config, {
+      ...personal(owner),
+      createdBy: owner,
+      ...(parentEntryId ? { parentEntryId } : {}),
+      file: new File([bytes as BlobPart], name),
+    });
+  }
+
+  test("creates a sheet sibling and leaves the source untouched", async () => {
+    const owner = await seedUser();
+    const folder = await createDriveFolder(db, { ...personal(owner), createdBy: owner, name: "books" });
+    const source = await seedWorkbook(owner, "Budget.xlsx", folder.id);
+
+    const sheet = await convertDriveEntryToSheet(db, config, personal(owner), source.id, owner);
+
+    expect(sheet.name).toBe("Budget.sheet");
+    expect(sheet.parentEntryId).toBe(folder.id);
+    expect(sheet.file?.mimetype).toBe(UNIVER_SHEET_MIME);
+
+    // The source entry is untouched and still downloadable.
+    const after = await getDriveEntry(db, personal(owner), source.id);
+    expect(after?.name).toBe("Budget.xlsx");
+    expect(after?.file?.fileId).toBe(source.file?.fileId);
+  });
+
+  test("carries every tab and typed value into the snapshot", async () => {
+    const owner = await seedUser();
+    const source = await seedWorkbook(owner);
+
+    const sheet = await convertDriveEntryToSheet(db, config, personal(owner), source.id, owner);
+
+    const body = await (await buildDriveEntryDownloadResponse(db, config, personal(owner), sheet.id, false)).text();
+    const snapshot = JSON.parse(body) as {
+      name: string;
+      sheetOrder: string[];
+      sheets: Record<string, { name: string; cellData: Record<string, Record<string, { v: unknown; t?: number }>> }>;
+    };
+    expect(snapshot.name).toBe("Budget");
+    expect(snapshot.sheetOrder).toHaveLength(2);
+    expect(snapshot.sheets[snapshot.sheetOrder[0]!]!.name).toBe("Summary");
+    expect(snapshot.sheets[snapshot.sheetOrder[1]!]!.name).toBe("Detail");
+    expect(snapshot.sheets[snapshot.sheetOrder[0]!]!.cellData[1]![1]).toEqual({ v: 3, t: 2 });
+  });
+
+  test("refuses a folder, a non-workbook file, and an unreadable workbook", async () => {
+    const owner = await seedUser();
+    const folder = await createDriveFolder(db, { ...personal(owner), createdBy: owner, name: "plain" });
+    const text = await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("notes.txt", "body") });
+    const broken = await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("Broken.xlsx", "not a workbook") });
+
+    await expect(convertDriveEntryToSheet(db, config, personal(owner), folder.id, owner))
+      .rejects
+      .toMatchObject({ statusCode: 400, code: "INVALID_ENTRY_TYPE" });
+    await expect(convertDriveEntryToSheet(db, config, personal(owner), text.id, owner))
+      .rejects
+      .toMatchObject({ statusCode: 400, code: "UNSUPPORTED_FORMAT" });
+    await expect(convertDriveEntryToSheet(db, config, personal(owner), broken.id, owner))
+      .rejects
+      .toMatchObject({ statusCode: 400, code: "UNSUPPORTED_FORMAT" });
+
+    // Nothing was created for any of the three refusals.
+    const entries = await listDriveEntries(db, { ...personal(owner), parentEntryId: null });
+    expect(entries.filter(e => e.name.endsWith(".sheet"))).toHaveLength(0);
+  });
+
+  test("refuses a workbook larger than the upload cap", async () => {
+    const owner = await seedUser();
+    const source = await seedWorkbook(owner);
+    const tiny = { ...config, MAX_UPLOAD_BYTES: 8 };
+
+    await expect(convertDriveEntryToSheet(db, tiny, personal(owner), source.id, owner))
+      .rejects
+      .toMatchObject({ statusCode: 400, code: "FILE_TOO_LARGE" });
+  });
+
+  test("refuses an entry owned by someone else", async () => {
+    const owner = await seedUser();
+    const other = await seedUser("Mallory");
+    const source = await seedWorkbook(owner);
+
+    await expect(convertDriveEntryToSheet(db, config, personal(other), source.id, other))
+      .rejects
+      .toMatchObject({ statusCode: 404 });
   });
 });

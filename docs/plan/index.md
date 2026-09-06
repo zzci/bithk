@@ -1,5 +1,6 @@
 # Plans
 
+- [x] [PLAN-116 Server-side workbook conversion for stored drive files](PLAN-116.md)
 - [x] [PLAN-115 Excel workbook import via hucre, original file preserved](PLAN-115.md)
 - [x] [PLAN-114 Product acceptance follow-up](PLAN-114.md)
 - [x] [PLAN-113 Repair persistence and recovery audit findings](PLAN-113.md)
@@ -116,3 +117,4 @@
 | [PLAN-111](PLAN-111.md) | Remediate the 2026-09-01 repository audit findings | Completed | 2026-09-01 |
 | [PLAN-112](PLAN-112.md) | SMTP email delivery and webhook subscriptions | Completed | 2026-09-01 |
 | [PLAN-115](PLAN-115.md) | Excel workbook import via hucre, original file preserved | Completed | 2026-09-05 |
+| [PLAN-116](PLAN-116.md) | Server-side workbook conversion for stored drive files | Completed | 2026-09-05 |

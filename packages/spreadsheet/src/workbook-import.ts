@@ -31,6 +31,15 @@ export function workbookBaseName(filename: string): string {
   return filename.replace(RE_WORKBOOK_EXTENSION, "") || filename;
 }
 
+/**
+ * Whether a filename names a workbook this module can read. Both consumers
+ * gate on it: the API refuses to convert anything else, and the web app only
+ * offers the convert action on entries it would accept.
+ */
+export function isWorkbookFilename(filename: string): boolean {
+  return RE_WORKBOOK_EXTENSION.test(filename);
+}
+
 function extensionOf(filename: string): string {
   const dot = filename.lastIndexOf(".");
   return dot <= 0 ? "" : filename.slice(dot + 1).toLowerCase();

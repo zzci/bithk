@@ -87,7 +87,8 @@
       "trash": "Move to trash",
       "restore": "Restore",
       "deleteForever": "Delete forever",
-      "emptyTrash": "Empty trash"
+      "emptyTrash": "Empty trash",
+      "convertToSheet": "Convert to spreadsheet"
     },
     "dialog": {
       "folderTitle": "New folder",
@@ -223,6 +224,7 @@
   "excel": {
     "importError": "Could not import this workbook.",
     "empty": "The workbook has no cell values.",
-    "tooLarge": "This workbook is too large to import."
+    "tooLarge": "This workbook is too large to import.",
+    "convertError": "Could not convert this workbook."
   }
 }

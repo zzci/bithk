@@ -6,6 +6,7 @@
 // the surface `actions` bag. The list rendering, search, filters, sorting,
 // selection, and context menus all live in the surface.
 
+import type { WorkbookSheetInput } from "@app/spreadsheet";
 import type { DragEvent } from "react";
 import type {
   DriveFileListCapabilities,
@@ -15,9 +16,9 @@ import type {
 } from "@/shared/components/file";
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
 import type { DisplayItem } from "@/shared/lib/file";
-import type { WorkbookSheetInput } from "@/shared/lib/univer-snapshot";
-import { FolderInput, History, Trash2, Upload } from "lucide-react";
+import { csvToUniverSnapshotJson, emptyUniverSnapshotJson, isWorkbookFilename, readWorkbookSheets, WORKBOOK_ACCEPT, workbookBaseName, workbookToUniverSnapshotJson } from "@app/spreadsheet";
 
+import { FileSpreadsheet, FolderInput, History, Trash2, Upload } from "lucide-react";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -26,12 +27,13 @@ import { DriveVersionHistoryDialog } from "@/shared/components/file/version-hist
 import { useShare } from "@/shared/components/share";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
-import { ErrorBanner } from "@/shared/components/ui/error-banner";
 
+import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useUploadLimits } from "@/shared/hooks/use-upload-limits";
 import {
   downloadDriveEntry,
   isUniverSheetEntry,
+  useConvertEntryToSheet,
   useCreateDriveFolder,
   useCreateSpreadsheet,
   useCreateTextFile,
@@ -45,9 +47,7 @@ import {
   useUpdateDriveEntry,
 } from "@/shared/lib/api/drive";
 import { entryToDisplayItem } from "@/shared/lib/file";
-import { csvToUniverSnapshotJson, emptyUniverSnapshotJson, workbookToUniverSnapshotJson } from "@/shared/lib/univer-snapshot";
 import { cn } from "@/shared/lib/utils";
-import { readWorkbookSheets, WORKBOOK_ACCEPT, workbookBaseName } from "@/shared/lib/workbook-import";
 import {
   CreateFolderDialog,
   CreateSpreadsheetDialog,
@@ -176,6 +176,7 @@ export function FileBrowser({
   const createFolder = useCreateDriveFolder();
   const createTextFile = useCreateTextFile();
   const createSpreadsheet = useCreateSpreadsheet();
+  const convertToSheet = useConvertEntryToSheet();
   const enqueueUploads = useFileUploader();
   const { maxFileSize } = useUploadLimits();
   const updateEntry = useUpdateDriveEntry();
@@ -466,8 +467,21 @@ export function FileBrowser({
         onSelect: () => setDialog({ type: "move", entry }),
       });
     }
+    // Workbooks stored in the drive can be converted server-side into an
+    // editable sheet. The source file stays where it is (FEAT-062).
+    if (canManageEntries && entry.file && isWorkbookFilename(entry.name)) {
+      actions.push({
+        key: "convert-to-sheet",
+        label: t("browser.action.convertToSheet"),
+        icon: <FileSpreadsheet className="mr-2 size-4" />,
+        onSelect: () => convertToSheet.mutate({ id: entry.id }, {
+          onSuccess: sheet => handlePreview?.(sheet, true, canManage),
+          onError: () => toast.error(t("excel.convertError")),
+        }),
+      });
+    }
     return actions;
-  }, [canManageEntries, canViewVersions, entryById, t]);
+  }, [canManage, canManageEntries, canViewVersions, convertToSheet, entryById, handlePreview, t]);
 
   // Trash rows swap the folder actions for a single destructive delete-forever.
   const getTrashCustomActions = useCallback((): FileListAction[] => (

@@ -2659,6 +2659,23 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/drive/entries/{id}/convert-to-sheet": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Convert a stored workbook into an editable spreadsheet */
+        readonly post: operations["postDriveEntriesByIdConvertToSheet"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/drive/entries/{id}/restore": {
         readonly parameters: {
             readonly query?: never;
@@ -24363,6 +24380,123 @@ export interface operations {
                             readonly createdAt: string;
                             readonly isCurrent: boolean;
                         }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly postDriveEntriesByIdConvertToSheet: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Created */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            /** @enum {string} */
+                            readonly ownerType: "user" | "team_directory" | "project";
+                            readonly ownerId: string;
+                            readonly parentEntryId: string | null;
+                            /** @enum {string} */
+                            readonly type: "folder" | "file";
+                            readonly name: string;
+                            readonly favorite: boolean;
+                            /** @enum {string} */
+                            readonly status: "normal" | "trash";
+                            readonly createdBy: string;
+                            readonly createdByName: string;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                            readonly file: {
+                                readonly referenceId: string;
+                                readonly fileId: string;
+                                readonly filename: string;
+                                readonly mimetype: string;
+                                readonly size: number;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            /** @description Not a convertible workbook */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
                     };
                 };
             };

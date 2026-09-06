@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { csvToUniverSnapshotJson, emptyUniverSnapshotJson, parseCsv, workbookToUniverSnapshotJson } from "./univer-snapshot";
 
 interface ParsedSnapshot {
@@ -33,7 +33,7 @@ describe("emptyUniverSnapshotJson", () => {
     expect(snapshot.locale).toBe("enUS");
 
     const sheet = firstSheet(snapshot);
-    expect(sheet.id).toBe(snapshot.sheetOrder[0]);
+    expect(sheet.id).toBe(snapshot.sheetOrder[0]!);
     expect(sheet.rowCount).toBe(100);
     expect(sheet.columnCount).toBe(26);
     expect(sheet.cellData).toEqual({});
@@ -117,8 +117,8 @@ describe("workbookToUniverSnapshotJson", () => {
     const [first, second] = snapshot.sheetOrder.map(id => snapshot.sheets[id]!);
     expect(first!.name).toBe("Summary");
     expect(second!.name).toBe("Detail");
-    expect(first!.id).toBe(snapshot.sheetOrder[0]);
-    expect(second!.id).toBe(snapshot.sheetOrder[1]);
+    expect(first!.id).toBe(snapshot.sheetOrder[0]!);
+    expect(second!.id).toBe(snapshot.sheetOrder[1]!);
   });
 
   it("tags numbers and booleans with their Univer cell type", () => {

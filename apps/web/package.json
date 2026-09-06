@@ -18,6 +18,7 @@
     "test": "vitest run --coverage"
   },
   "dependencies": {
+    "@app/spreadsheet": "workspace:*",
     "@base-ui/react": "1.7.0",
     "@codemirror/lang-markdown": "6.5.2",
     "@codemirror/language": "6.12.4",
@@ -36,7 +37,6 @@
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "codemirror": "6.0.2",
-    "hucre": "1.1.0",
     "i18next": "26.4.0",
     "i18next-browser-languagedetector": "8.2.1",
     "lucide-react": "1.37.0",

@@ -87,7 +87,8 @@
       "trash": "移到回收站",
       "restore": "恢复",
       "deleteForever": "永久删除",
-      "emptyTrash": "清空回收站"
+      "emptyTrash": "清空回收站",
+      "convertToSheet": "转换为表格"
     },
     "dialog": {
       "folderTitle": "新建文件夹",
@@ -223,6 +224,7 @@
   "excel": {
     "importError": "无法导入该工作簿。",
     "empty": "工作簿中没有任何单元格内容。",
-    "tooLarge": "该工作簿过大，无法导入。"
+    "tooLarge": "该工作簿过大，无法导入。",
+    "convertError": "无法转换该工作簿。"
   }
 }

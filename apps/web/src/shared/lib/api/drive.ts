@@ -347,6 +347,21 @@ export function useCreateSpreadsheet(): UseMutationResult<DriveEntry, Error, Cre
   });
 }
 
+/**
+ * Convert a workbook already stored in the drive into an editable spreadsheet.
+ * The server reads the stored blob and creates a `.sheet` sibling; the source
+ * entry is left untouched, so this is additive and safe to retry.
+ */
+export function useConvertEntryToSheet(): UseMutationResult<DriveEntry, Error, { id: string }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }) => rawJson<ApiEnvelope<DriveEntry>>(`/drive/entries/${encodeURIComponent(id)}/convert-to-sheet`, {
+      method: "POST",
+    }).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: driveKeys.all }),
+  });
+}
+
 export function useUpdateDriveEntry(): UseMutationResult<DriveEntry, Error, {
   id: string;
   name?: string;

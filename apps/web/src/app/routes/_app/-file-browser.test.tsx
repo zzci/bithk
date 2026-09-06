@@ -1,12 +1,12 @@
 import type { DriveFileListSurfaceActions } from "@/shared/components/file";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import type { DisplayItem } from "@/shared/lib/file";
+import { WORKBOOK_ACCEPT } from "@app/spreadsheet";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useFileUploadStore } from "@/shared/components/file";
 import { UNIVER_SHEET_MIME } from "@/shared/lib/api/drive";
-import { WORKBOOK_ACCEPT } from "@/shared/lib/workbook-import";
 import { renderWithProviders } from "@/test/utils";
 
 const { navigateMock, toastError } = vi.hoisted(() => ({ navigateMock: vi.fn(), toastError: vi.fn() }));

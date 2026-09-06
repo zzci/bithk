@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { readWorkbookSheets, WORKBOOK_ACCEPT, workbookBaseName } from "./workbook-import";
+import { describe, expect, it } from "bun:test";
+import { isWorkbookFilename, readWorkbookSheets, WORKBOOK_ACCEPT, workbookBaseName } from "./workbook-import";
 
 async function xlsxFixture(): Promise<Uint8Array> {
   const { writeXlsx } = await import("hucre/xlsx");
@@ -21,6 +21,18 @@ describe("workbookBaseName", () => {
   it("leaves an unrelated name alone", () => {
     expect(workbookBaseName("notes.txt")).toBe("notes.txt");
     expect(workbookBaseName("Budget")).toBe("Budget");
+  });
+});
+
+describe("isWorkbookFilename", () => {
+  it("accepts every extension the reader dispatches on, in any case", () => {
+    for (const name of ["a.xlsx", "a.xlsb", "a.XLS", "a.Ods"])
+      expect(isWorkbookFilename(name)).toBe(true);
+  });
+
+  it("rejects anything else", () => {
+    for (const name of ["notes.txt", "book.csv", "plan.sheet", "xlsx", "a.xlsx.txt"])
+      expect(isWorkbookFilename(name)).toBe(false);
   });
 });
 

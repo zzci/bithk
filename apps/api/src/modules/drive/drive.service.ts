@@ -3,17 +3,20 @@ import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { DrainedBlob } from "@/modules/file";
 import type { PresignedUpload } from "@/modules/file/storage/types";
+import { isWorkbookFilename, readWorkbookSheets, workbookBaseName, workbookToUniverSnapshotJson } from "@app/spreadsheet";
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
 import {
   buildDownloadResponse,
   directUploadAvailable,
+  fileContentUnavailableError,
   finalizeReleasedBlob,
   findStoredBlob,
   findStoredBlobByHash,
   getFileById,
   getReferenceById,
+  isQuarantinedFile,
   presignBlobUpload,
   registerUploadedBlob,
   releaseReference,
@@ -22,10 +25,11 @@ import {
   uploadAndReference,
 } from "@/modules/file";
 import { fileReferences, files } from "@/modules/file/schema";
+import { getDriver } from "@/modules/file/storage/registry";
 import { shares } from "@/modules/share/schema";
 import { AppError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
-import { assertWithinTotalQuota } from "@/shared/lib/upload-limits";
+import { assertWithinTotalQuota, isWithinFileSize } from "@/shared/lib/upload-limits";
 import { driveEntries, driveFileVersions, UNIVER_SHEET_MIME } from "./schema";
 
 export type DriveEntryRow = typeof driveEntries.$inferSelect;
@@ -701,6 +705,66 @@ export interface UpdateDriveEntryInput extends DriveOwner {
   readonly name?: string | undefined;
   readonly parentEntryId?: string | null | undefined;
   readonly favorite?: boolean | undefined;
+}
+
+/**
+ * Convert a workbook already stored in the drive into an editable Univer
+ * spreadsheet, as a sibling of the source. The source entry is never written
+ * to: the conversion carries values only (formulas arrive as their cached
+ * result, styles and widths are dropped), so the original stays the record of
+ * truth — the same contract as the browser-side import path, and the same
+ * shared conversion code.
+ */
+export async function convertDriveEntryToSheet(
+  db: AppDatabase,
+  config: Pick<Config, "MAX_UPLOAD_BYTES" | "MAX_ATTACHMENTS_PER_RESOURCE" | "UPLOADS_TOTAL_BYTES" | "FILE_GC_MODE" | "FILE_PRESIGN_ENABLED" | "FILE_PRESIGN_TTL_SECONDS">,
+  owner: DriveOwner,
+  id: string,
+  convertedBy: string,
+): Promise<DriveEntryView> {
+  const entry = await requireDriveEntryRow(db, owner, id);
+  if (entry.entryType !== "file" || !entry.fileReferenceId)
+    throw new AppError("Drive entry is not a file", 400, "INVALID_ENTRY_TYPE");
+
+  const ref = await getReferenceById(db, entry.fileReferenceId);
+  if (!ref)
+    throw new AppError("File reference not found", 404, "NOT_FOUND");
+  const file = await getFileById(db, ref.fileId);
+  if (!file)
+    throw new AppError("File not found", 404, "NOT_FOUND");
+  if (isQuarantinedFile(file))
+    throw fileContentUnavailableError();
+
+  if (!isWorkbookFilename(ref.filename))
+    throw new AppError("Entry is not a convertible workbook", 400, "UNSUPPORTED_FORMAT");
+  // The parse happens in this process, so the per-file upload ceiling governs
+  // it: anything the drive would refuse to accept is refused here too.
+  if (!isWithinFileSize(file.size, config))
+    throw new AppError("Workbook exceeds the per-file size limit", 400, "FILE_TOO_LARGE");
+
+  // Multi-driver read (FEAT-047): resolve the blob's OWN driver so db / local /
+  // s3 sources all convert.
+  const stream = await getDriver(file.storageDriver).getStream(file.storageKey);
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+
+  const name = workbookBaseName(ref.filename);
+  let content: string;
+  try {
+    content = workbookToUniverSnapshotJson(await readWorkbookSheets(ref.filename, bytes), name);
+  }
+  catch {
+    // Unreadable bytes and a workbook with no cells both land here; neither
+    // leaves anything behind, so the caller can retry after fixing the source.
+    throw new AppError("Workbook could not be converted", 400, "UNSUPPORTED_FORMAT");
+  }
+
+  return createDriveSpreadsheet(db, config, {
+    ...owner,
+    createdBy: convertedBy,
+    parentEntryId: entry.parentEntryId || null,
+    name: `${name}.sheet`,
+    content,
+  });
 }
 
 export async function updateDriveEntry(db: AppDatabase, input: UpdateDriveEntryInput): Promise<DriveEntryView> {

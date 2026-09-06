@@ -16,6 +16,7 @@ import { assertEntryCapability, driveAccess } from "./drive.permission";
 import {
   buildDriveEntryDownloadResponse,
   confirmDriveUpload,
+  convertDriveEntryToSheet,
   createDriveFolder,
   createDriveSpreadsheet,
   createDriveTextFile,
@@ -827,6 +828,33 @@ export function driveRoutes() {
         result: "success",
       });
       return c.json({ success: true, data: entry });
+    },
+  );
+
+  router.post(
+    "/drive/entries/:id/convert-to-sheet",
+    describeRoute({
+      tags: ["drive"],
+      summary: "Convert a stored workbook into an editable spreadsheet",
+      responses: { 201: okJson(driveEntrySchema, "Created"), 400: { description: "Not a convertible workbook", ...errorJson }, 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const { id } = c.req.valid("param");
+      // Gated on write access to the source entry: the conversion creates a
+      // sibling in the same folder, so the same permission governs both.
+      await driveAccess.assert(policyContext(c)!, "drive:update", id);
+      const user = c.get("user");
+      const owner = await getEntryOwner(c.get("db"), id);
+      const entry = await convertDriveEntryToSheet(c.get("db"), c.get("config"), owner, id, user.id);
+      await auditFromCtx(c, {
+        action: "drive.file.created",
+        resourceType: "drive_entry",
+        resourceId: entry.id,
+        resourceName: entry.name,
+        result: "success",
+      });
+      return c.json({ success: true, data: entry }, 201);
     },
   );
 

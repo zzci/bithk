@@ -1,5 +1,6 @@
 # Tasks
 
+- [x] [**FEAT-062 Convert a stored workbook into a spreadsheet from the server**](FEAT-062.md) `P2`
 - [x] [**FEAT-061 Import Excel workbooks as editable spreadsheets while keeping the original file**](FEAT-061.md) `P2`
 - [x] [**FIX-076 Validate product flows and repair acceptance defects**](FIX-076.md) `P1`
 - [x] [**FIX-075 Repair audit findings in persistence and recovery**](FIX-075.md) `P1`
@@ -236,3 +237,4 @@
 | [TEST-003](TEST-003.md) | e2e specs still target the pre-PLAN-108 ship and module surface | [PLAN-111](../plan/PLAN-111.md) | Completed | 2026-09-01 |
 | [CHORE-013](CHORE-013.md) | Delete the v1 JSON backup services and port their test harness to v2 | - | Completed | 2026-09-02 |
 | [FEAT-061](FEAT-061.md) | Import Excel workbooks as editable spreadsheets while keeping the original file | [PLAN-115](../plan/PLAN-115.md) | Completed | 2026-09-05 |
+| [FEAT-062](FEAT-062.md) | Convert a stored workbook into a spreadsheet from the server | [PLAN-116](../plan/PLAN-116.md) | Completed | 2026-09-05 |

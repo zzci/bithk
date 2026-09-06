@@ -808,6 +808,49 @@ describe("FIX-063 — sheet survives a multipart version save (route level)", ()
     expect(JSON.parse(await content.text())).toEqual({ rev: 1, sheets: {} });
   });
 
+  test("converts a stored workbook into a sheet sibling and refuses a non-workbook", async () => {
+    const userId = await seedUser("Convert");
+    const app = buildApp();
+    const { writeXlsx } = await import("hucre/xlsx");
+    const bytes = await writeXlsx({ sheets: [{ name: "Summary", rows: [["Item", "Qty"], ["Widget", 3]] }] });
+
+    const form = new FormData();
+    form.set("file", new File([bytes as BlobPart], "Budget.xlsx"));
+    const uploaded = await app.request("/drive/files/upload", { method: "POST", body: form, headers: { "x-uid": userId } });
+    expect(uploaded.status).toBe(201);
+    const source = (await uploaded.json()).data;
+
+    const converted = await app.request(`/drive/entries/${source.id}/convert-to-sheet`, {
+      method: "POST",
+      headers: { "x-uid": userId },
+    });
+    expect(converted.status).toBe(201);
+    const sheet = (await converted.json()).data;
+    expect(sheet.name).toBe("Budget.sheet");
+    expect(sheet.file.mimetype).toBe(UNIVER_SHEET_MIME);
+    expect(sheet.id).not.toBe(source.id);
+
+    // The snapshot carries the source values, and the original entry survives.
+    const content = await app.request(`/drive/entries/${sheet.id}/content`, { headers: { "x-uid": userId } });
+    const snapshot = JSON.parse(await content.text());
+    const first = snapshot.sheets[snapshot.sheetOrder[0]];
+    expect(first.name).toBe("Summary");
+    expect(first.cellData[1][1]).toEqual({ v: 3, t: 2 });
+    expect((await app.request(`/drive/entries/${source.id}`, { headers: { "x-uid": userId } })).status).toBe(200);
+
+    // A plain text file is refused without creating anything.
+    const textForm = new FormData();
+    textForm.set("file", new File(["body"], "notes.txt"));
+    const text = (await (await app.request("/drive/files/upload", { method: "POST", body: textForm, headers: { "x-uid": userId } })).json()).data;
+    const refused = await app.request(`/drive/entries/${text.id}/convert-to-sheet`, {
+      method: "POST",
+      headers: { "x-uid": userId },
+    });
+    // This harness's error envelope carries no code; the exact codes are
+    // pinned in the service tests.
+    expect(refused.status).toBe(400);
+  });
+
   test("an attachment-style multipart upload of a .pdf with empty File.type stores application/pdf", async () => {
     const userId = await seedUser();
     const app = buildApp();

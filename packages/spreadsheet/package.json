@@ -1,0 +1,27 @@
+{
+  "name": "@app/spreadsheet",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Workbook reading and Univer snapshot building, shared by the API and the web app.",
+  "homepage": "https://github.com/zzci",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zzci/bun-app-tpl.git",
+    "directory": "packages/spreadsheet"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hucre": "1.1.0"
+  },
+  "devDependencies": {
+    "@app/tsconfig": "workspace:*",
+    "@types/bun": "1.4.0"
+  }
+}

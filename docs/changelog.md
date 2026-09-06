@@ -13,6 +13,12 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Drive rows carry a "Convert to spreadsheet" action for workbooks already
+  stored in the drive, backed by `POST /drive/entries/:id/convert-to-sheet`
+  (FEAT-062). The server reads the stored blob through its own storage driver
+  and creates a `.sheet` sibling in the same folder; the source file is never
+  written to. Folders, non-workbooks, unreadable bytes and blobs over the
+  per-file upload cap are refused without creating anything.
 - Drive "Import Excel": pick an `.xlsx` / `.xlsb` / `.xls` / `.ods` workbook
   and get two entries — the original file, uploaded untouched, plus a
   converted, editable Univer spreadsheet beside it (FEAT-061). Every source
@@ -21,6 +27,13 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   dropped), which is why the original is preserved. Reading is done in the
   browser by `hucre`, dynamically imported so its ~25 kB gzipped chunk is
   fetched only on an actual import.
+
+### Changed
+
+- Workbook reading and Univer snapshot building moved out of the web app into
+  a shared `@app/spreadsheet` workspace package, so the browser import path and
+  the server conversion endpoint run one implementation instead of two
+  (FEAT-062). `hucre` is now that package's dependency.
 
 ### Fixed
 

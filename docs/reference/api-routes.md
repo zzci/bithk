@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 347 routes total.
+> 348 routes total.
 
 | Method | Path |
 |---|---|
@@ -138,6 +138,7 @@
 | GET | `/api/drive/entries/:id` |
 | PATCH | `/api/drive/entries/:id` |
 | GET | `/api/drive/entries/:id/content` |
+| POST | `/api/drive/entries/:id/convert-to-sheet` |
 | DELETE | `/api/drive/entries/:id/display-version` |
 | PUT | `/api/drive/entries/:id/display-version` |
 | DELETE | `/api/drive/entries/:id/permanent` |
