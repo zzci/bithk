@@ -81,6 +81,10 @@ function DrivePage() {
 
   // Page-level dialog targets, driven by the file browser / list callbacks.
   const [previewEntry, setPreviewEntry] = useState<DriveEntry | null>(null);
+  // Previewable entries of the listing the preview was opened from, used by the
+  // dialog's previous/next stepping. Lists without a directory context (recent,
+  // favorites, shares, sidebar) open the preview without one.
+  const [previewSiblings, setPreviewSiblings] = useState<readonly DriveEntry[]>([]);
   const [sheetEntry, setSheetEntry] = useState<DriveEntry | null>(null);
   // Editability of the sheet editor dialog: threaded from the opener's scope
   // capability (team-dir role / project files.manage / true for personal;
@@ -96,7 +100,12 @@ function DrivePage() {
   // open the state-driven editor dialog (closing stays in the current folder);
   // everything else uses the preview viewer. `edit` starts the markdown/text
   // viewer in edit mode; `canEdit` drives whether the sheet editor is editable.
-  const openPreview = useCallback((entry: DriveEntry, edit = false, canEdit = false) => {
+  const openPreview = useCallback((
+    entry: DriveEntry,
+    edit = false,
+    canEdit = false,
+    siblings: readonly DriveEntry[] = [],
+  ) => {
     if (isUniverSheetEntry(entry)) {
       setSheetEntry(entry);
       setSheetCanEdit(canEdit);
@@ -104,6 +113,7 @@ function DrivePage() {
     }
     setPreviewEntry(entry);
     setPreviewEditing(edit);
+    setPreviewSiblings(siblings);
   }, []);
 
   const startSidebarResize = useCallback((e: React.MouseEvent) => {
@@ -215,6 +225,8 @@ function DrivePage() {
           entry={previewEntry}
           open
           initialEditing={previewEditing}
+          siblings={previewSiblings}
+          onNavigate={setPreviewEntry}
           onOpenChange={open => !open && setPreviewEntry(null)}
         />
       )}
@@ -235,7 +247,12 @@ function DrivePage() {
 
 interface ViewCallbacks {
   readonly onShareEntry: (entry: DriveEntry) => void;
-  readonly onPreviewEntry: (entry: DriveEntry, edit?: boolean, canEdit?: boolean) => void;
+  readonly onPreviewEntry: (
+    entry: DriveEntry,
+    edit?: boolean,
+    canEdit?: boolean,
+    siblings?: readonly DriveEntry[],
+  ) => void;
 }
 
 function DriveViewContent({

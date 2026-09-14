@@ -43,8 +43,17 @@ vi.mock("@/shared/components/file/file-list-surface", () => ({
 // Stub the heavy preview dialog with a marker so we can assert it renders and
 // reflects readOnly, without pulling in pdfjs / CodeMirror.
 vi.mock("@/shared/components/file/file-preview-dialog", () => ({
-  FilePreviewDialog: ({ entry, readOnly }: { entry: DriveEntry; readOnly?: boolean }) => (
-    <div data-testid="preview-dialog">{`preview:${entry.name}:${readOnly ? "ro" : "rw"}`}</div>
+  FilePreviewDialog: ({ entry, readOnly, siblings, onNavigate }: {
+    entry: DriveEntry;
+    readOnly?: boolean;
+    siblings?: readonly DriveEntry[];
+    onNavigate?: (entry: DriveEntry) => void;
+  }) => (
+    <div data-testid="preview-dialog">
+      {`preview:${entry.name}:${readOnly ? "ro" : "rw"}`}
+      <span data-testid="preview-siblings">{(siblings ?? []).map(s => s.name).join(",")}</span>
+      <button type="button" onClick={() => siblings?.[1] && onNavigate?.(siblings[1])}>next-sibling</button>
+    </div>
   ),
 }));
 
@@ -71,7 +80,7 @@ function fileEntry(id: string, name: string, mimetype: string): DriveEntry {
     ownerType: "user",
     ownerId: "self",
     parentEntryId: null,
-    file: { fileId: `f-${id}`, mimetype, size: 1 },
+    file: { fileId: `f-${id}`, filename: name, mimetype, size: 1 },
     favorite: false,
     status: "normal",
     createdAt: "",
@@ -91,6 +100,7 @@ beforeEach(() => {
     success: true,
     data: [
       fileEntry("file1", "report.pdf", "application/pdf"),
+      fileEntry("file2", "photo.png", "image/png"),
       fileEntry("sheet1", "budget.sheet", UNIVER_SHEET_MIME),
     ],
   }));
@@ -126,6 +136,18 @@ describe("fileBrowser internal preview", () => {
 
     await user.click(await screen.findByText("open:report.pdf"));
     expect(screen.getByTestId("preview-dialog")).toHaveTextContent("preview:report.pdf:ro");
+  });
+
+  it("hands the dialog the folder's previewable files and steps between them", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<FileBrowser ownerType="user" ownerId="self" />);
+
+    await user.click(await screen.findByText("open:report.pdf"));
+    // The spreadsheet opens in its own editor, so it is not part of the sequence.
+    expect(screen.getByTestId("preview-siblings")).toHaveTextContent("report.pdf,photo.png");
+
+    await user.click(screen.getByText("next-sibling"));
+    expect(screen.getByTestId("preview-dialog")).toHaveTextContent("preview:photo.png:rw");
   });
 
   it("renders the search box by default", async () => {

@@ -1,5 +1,6 @@
 # Tasks
 
+- [x] [**FEAT-063 Step through previewable files from inside the preview dialog**](FEAT-063.md) `P3`
 - [x] [**FEAT-062 Convert a stored workbook into a spreadsheet from the server**](FEAT-062.md) `P2`
 - [x] [**FEAT-061 Import Excel workbooks as editable spreadsheets while keeping the original file**](FEAT-061.md) `P2`
 - [x] [**FIX-076 Validate product flows and repair acceptance defects**](FIX-076.md) `P1`
@@ -238,3 +239,4 @@
 | [CHORE-013](CHORE-013.md) | Delete the v1 JSON backup services and port their test harness to v2 | - | Completed | 2026-09-02 |
 | [FEAT-061](FEAT-061.md) | Import Excel workbooks as editable spreadsheets while keeping the original file | [PLAN-115](../plan/PLAN-115.md) | Completed | 2026-09-05 |
 | [FEAT-062](FEAT-062.md) | Convert a stored workbook into a spreadsheet from the server | [PLAN-116](../plan/PLAN-116.md) | Completed | 2026-09-05 |
+| [FEAT-063](FEAT-063.md) | Step through previewable files from inside the preview dialog | [PLAN-117](../plan/PLAN-117.md) | Completed | 2026-09-14 |

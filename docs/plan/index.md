@@ -118,3 +118,4 @@
 | [PLAN-112](PLAN-112.md) | SMTP email delivery and webhook subscriptions | Completed | 2026-09-01 |
 | [PLAN-115](PLAN-115.md) | Excel workbook import via hucre, original file preserved | Completed | 2026-09-05 |
 | [PLAN-116](PLAN-116.md) | Server-side workbook conversion for stored drive files | Completed | 2026-09-05 |
+| [PLAN-117](PLAN-117.md) | Sibling navigation inside the drive preview dialog | Completed | 2026-09-14 |

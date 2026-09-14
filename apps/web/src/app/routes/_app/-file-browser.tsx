@@ -22,7 +22,7 @@ import { FileSpreadsheet, FolderInput, History, Trash2, Upload } from "lucide-re
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { DriveFileListSurface, FilePreviewDialog, FileUploadButton, useFileUploader } from "@/shared/components/file";
+import { DriveFileListSurface, FilePreviewDialog, FileUploadButton, previewableSiblings, useFileUploader } from "@/shared/components/file";
 import { DriveVersionHistoryDialog } from "@/shared/components/file/version-history-dialog";
 import { useShare } from "@/shared/components/share";
 import { Button } from "@/shared/components/ui/button";
@@ -93,7 +93,12 @@ export interface FileBrowserProps {
   /** Override the built-in share action (defaults to the app share dialog). */
   readonly onShareEntry?: (entry: DriveEntry) => void;
   /** Override the built-in preview (drive funnels every list through one chokepoint). */
-  readonly onPreviewEntry?: (entry: DriveEntry, edit?: boolean, canEdit?: boolean) => void;
+  readonly onPreviewEntry?: (
+    entry: DriveEntry,
+    edit?: boolean,
+    canEdit?: boolean,
+    siblings?: readonly DriveEntry[],
+  ) => void;
   /** When false, all mutating affordances are hidden or disabled (viewer role). */
   readonly canManage?: boolean;
   /** Label for the root breadcrumb (defaults to the generic "Root"). */
@@ -155,6 +160,9 @@ export function FileBrowser({
   // `onPreviewEntry` (project/ship files tabs); drive overrides it.
   const [previewEntry, setPreviewEntry] = useState<DriveEntry | null>(null);
   const [previewEditing, setPreviewEditing] = useState(false);
+  // Snapshot of the listing the preview was opened from, so the dialog can
+  // step to the next/previous file without reaching back into this component.
+  const [previewSiblings, setPreviewSiblings] = useState<readonly DriveEntry[]>([]);
   // Internal Univer editor target, used when this browser owns preview (no
   // parent handler). Drive renders its own editor dialog via `onPreviewEntry`.
   const [sheetEntry, setSheetEntry] = useState<DriveEntry | null>(null);
@@ -200,13 +208,19 @@ export function FileBrowser({
   // everything else opens the in-app preview dialog. Sheets are lock-free and
   // capability-driven, so the `edit` flag only starts the markdown/text viewer
   // in edit mode — the sheet editor ignores it (editability = canManage).
-  const internalOpenPreview = useCallback((entry: DriveEntry, edit = false) => {
+  const internalOpenPreview = useCallback((
+    entry: DriveEntry,
+    edit = false,
+    _canEdit = false,
+    siblings: readonly DriveEntry[] = [],
+  ) => {
     if (isUniverSheetEntry(entry)) {
       setSheetEntry(entry);
       return;
     }
     setPreviewEntry(entry);
     setPreviewEditing(edit);
+    setPreviewSiblings(siblings);
   }, []);
 
   // Parent-supplied handler wins (drive routes everything through its own
@@ -545,7 +559,7 @@ export function FileBrowser({
       const entry = entryById.get(item.id);
       if (entry)
         // Trashed entries open read-only until they are restored.
-        handlePreview?.(entry, false, canManage && !inTrash);
+        handlePreview?.(entry, false, canManage && !inTrash, previewableSiblings(entries));
     },
     onRename: (item) => {
       const entry = entryById.get(item.id);
@@ -732,6 +746,8 @@ export function FileBrowser({
           open
           initialEditing={previewEditing}
           readOnly={!canManage}
+          siblings={previewSiblings}
+          onNavigate={setPreviewEntry}
           onOpenChange={open => !open && setPreviewEntry(null)}
         />
       )}

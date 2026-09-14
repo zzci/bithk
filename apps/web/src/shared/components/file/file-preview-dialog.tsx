@@ -27,6 +27,8 @@ import type { PdfModule, ZoomModule, ZoomRef } from "./file-preview-types";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   FileText,
   FileWarning,
@@ -59,6 +61,7 @@ import { cn } from "@/shared/lib/utils";
 
 import { useIsDark } from "./file-preview-hooks";
 import { ImagePreview } from "./file-preview-image";
+import { siblingAt } from "./file-preview-nav";
 import { PdfPreview } from "./file-preview-pdf";
 import { ToolButton } from "./file-preview-toolbar";
 import { errorMessage, formatSize, mimeTypeForSave, resolvePreviewKind } from "./file-preview-types";
@@ -83,6 +86,11 @@ interface FilePreviewDialogProps {
   readonly readOnly?: boolean;
   // Open directly in edit mode (used right after creating a blank file).
   readonly initialEditing?: boolean;
+  // Previewable entries of the listing this dialog was opened from, in list
+  // order. Together with `onNavigate` they enable previous/next stepping;
+  // surfaces without a directory context (recent, favorites, shares) omit both.
+  readonly siblings?: readonly DriveEntry[];
+  readonly onNavigate?: (entry: DriveEntry) => void;
 }
 
 // Code/text surfaces (CodeMirror 6) — read-only highlight and editable editor.
@@ -93,7 +101,7 @@ const CodeEditor = lazy(() => import("@/shared/components/editor/code-editor"));
 
 // ── dialog ──
 
-export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onDownload, readOnly = false, initialEditing = false }: FilePreviewDialogProps) {
+export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onDownload, readOnly = false, initialEditing = false, siblings, onNavigate }: FilePreviewDialogProps) {
   const { t } = useTranslation("drive");
   const isDark = useIsDark();
   const uploadVersion = useUploadVersion();
@@ -365,6 +373,39 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
     setError(null);
   }, [initialContent]);
 
+  // ── sibling navigation ──
+  // Available only when the opener handed over a sequence that contains this
+  // entry. Stepping is blocked while editing so an unsaved buffer is never
+  // dropped; switching entry re-runs `loadFile`, which resets the view state.
+  const navSequence = siblings ?? [];
+  const navIndex = onNavigate ? navSequence.findIndex(sibling => sibling.id === entry.id) : -1;
+  const navVisible = navIndex >= 0 && navSequence.length > 1;
+  const previousEntry = navVisible && !editing ? siblingAt(navSequence, entry.id, -1) : null;
+  const nextEntry = navVisible && !editing ? siblingAt(navSequence, entry.id, 1) : null;
+
+  useEffect(() => {
+    if (!open || (!previousEntry && !nextEntry))
+      return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
+        return;
+      if (event.ctrlKey || event.metaKey || event.altKey)
+        return;
+      // Leave caret movement alone inside text surfaces (search fields, the
+      // CodeMirror buffer, the markdown editor).
+      const node = event.target as HTMLElement | null;
+      if (node?.isContentEditable || /^(?:input|textarea|select)$/i.test(node?.tagName ?? ""))
+        return;
+      const target = event.key === "ArrowLeft" ? previousEntry : nextEntry;
+      if (!target)
+        return;
+      event.preventDefault();
+      onNavigate?.(target);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, previousEntry, nextEntry, onNavigate]);
+
   if (!open)
     return null;
 
@@ -377,9 +418,32 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
     <>
       <FullscreenDialog open={open} onOpenChange={onOpenChange} fullscreen={fullscreen} ariaLabel={entry.name}>
         <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b px-4">
-          <div className="min-w-0">
-            <span className="block max-w-[52vw] truncate text-sm font-medium">{entry.name}</span>
-            <span className="block truncate text-xs text-muted-foreground">{metaLine}</span>
+          <div className="flex min-w-0 items-center gap-2">
+            {navVisible && (
+              <div className="flex shrink-0 items-center gap-1">
+                <ToolButton
+                  label={previewToolLabel("previous")}
+                  disabled={!previousEntry}
+                  onClick={() => previousEntry && onNavigate?.(previousEntry)}
+                >
+                  <ChevronLeft className="size-4" />
+                </ToolButton>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {`${navIndex + 1} / ${navSequence.length}`}
+                </span>
+                <ToolButton
+                  label={previewToolLabel("next")}
+                  disabled={!nextEntry}
+                  onClick={() => nextEntry && onNavigate?.(nextEntry)}
+                >
+                  <ChevronRight className="size-4" />
+                </ToolButton>
+              </div>
+            )}
+            <div className="min-w-0">
+              <span className="block max-w-[52vw] truncate text-sm font-medium">{entry.name}</span>
+              <span className="block truncate text-xs text-muted-foreground">{metaLine}</span>
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {canEdit && !editing && !loading && (

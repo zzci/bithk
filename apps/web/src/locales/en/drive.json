@@ -178,6 +178,8 @@
       "edit": "Edit",
       "save": "Save",
       "cancel": "Cancel",
+      "previous": "Previous file",
+      "next": "Next file",
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
       "rotateLeft": "Rotate left",

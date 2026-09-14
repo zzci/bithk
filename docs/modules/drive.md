@@ -301,6 +301,15 @@ uploading a new version through `useUploadVersion` (an unpinned entry's display
 then follows the new latest version), so edits flow through the same versioning
 path as any other upload.
 
+**Sibling navigation.** When the dialog is opened from a folder listing, the
+opener hands it that listing's previewable entries (`previewableSiblings` in
+`file-preview-nav.ts` — files only, minus Univer spreadsheets and unsupported
+kinds) as a snapshot taken at open time. The header then shows previous / next
+controls plus a `current / total` counter, and `ArrowLeft` / `ArrowRight` do the
+same, both inert while editing and while focus sits in a text field. Surfaces
+with no directory context (recent, favorites, share lists, attachments) pass no
+sequence and get the plain single-entry dialog.
+
 **Lazy loading.** The heavy renderers (`react-pdf` + `pdfjs-dist`,
 `react-zoom-pan-pinch`, the CodeMirror `CodePreview`) are loaded only on demand
 via dynamic `import()`, so they stay out of the route shell and the shared

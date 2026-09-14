@@ -13,6 +13,12 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- The drive preview dialog steps through the folder it was opened from
+  (FEAT-063): previous / next buttons with a `current / total` counter, plus
+  `ArrowLeft` / `ArrowRight`. The sequence covers previewable files only
+  (spreadsheets keep opening in their own editor) and is inert while editing a
+  text or markdown file. Lists without a directory context — recent, favorites,
+  share pages, attachments — are unchanged.
 - Drive rows carry a "Convert to spreadsheet" action for workbooks already
   stored in the drive, backed by `POST /drive/entries/:id/convert-to-sheet`
   (FEAT-062). The server reads the stored blob through its own storage driver

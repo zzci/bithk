@@ -12,6 +12,8 @@ export { DriveFileListSurface } from "./file-list-surface";
 
 export { FilePreviewDialog, resolvePreviewKind } from "./file-preview-dialog";
 
+export { previewableSiblings, siblingAt } from "./file-preview-nav";
+
 export type { FileUploadButtonProps } from "./file-upload-button";
 export { FileUploadButton } from "./file-upload-button";
 
