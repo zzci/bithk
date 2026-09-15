@@ -1,5 +1,6 @@
 # Plans
 
+- [x] [PLAN-118 Per-actor write rate limit](PLAN-118.md)
 - [x] [PLAN-116 Server-side workbook conversion for stored drive files](PLAN-116.md)
 - [x] [PLAN-115 Excel workbook import via hucre, original file preserved](PLAN-115.md)
 - [x] [PLAN-114 Product acceptance follow-up](PLAN-114.md)

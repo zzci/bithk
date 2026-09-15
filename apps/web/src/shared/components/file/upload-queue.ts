@@ -54,6 +54,24 @@ interface UploadOwner {
 }
 
 /**
+ * Bounded backoff for the server's write rate limiter (FEAT-064). A bulk folder
+ * upload legitimately outruns a per-minute budget — two writes per file plus a
+ * folder create per directory — so a 429 here means "wait", not "failed".
+ */
+const RATE_LIMIT_RETRIES = 2;
+const MAX_RETRY_DELAY_MS = 65_000;
+
+function retryDelayMs(retryAfter: string | null): number {
+  const seconds = Number(retryAfter);
+  const ms = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 1000;
+  return Math.min(ms, MAX_RETRY_DELAY_MS);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
  * Returns an `enqueue(files, owner)` that uploads each file via XHR, tracking
  * byte progress in the queue store and invalidating drive queries on success.
  * Auth mirrors `httpRaw`: cookie credentials + the `X-Requested-With` CSRF
@@ -70,7 +88,7 @@ export function useFileUploader(): (files: readonly File[], owner: UploadOwner) 
     // Stream bytes straight to the API (local driver) — multipart POST onto
     // an already-registered queue task. Also the fallback leg when a direct
     // upload fails partway.
-    const uploadViaApiTask = (id: string, file: File, parentEntryId: string | null) => new Promise<void>((resolve) => {
+    const uploadViaApiTask = (id: string, file: File, parentEntryId: string | null, attempt = 0) => new Promise<void>((resolve) => {
       const form = new FormData();
       form.set("file", file);
       if (parentEntryId)
@@ -88,6 +106,14 @@ export function useFileUploader(): (files: readonly File[], owner: UploadOwner) 
           patch(id, { status: "done", progress: 100 });
           void queryClient.invalidateQueries({ queryKey: driveKeys.all });
           resolve();
+        }
+        else if (xhr.status === 429 && attempt < RATE_LIMIT_RETRIES) {
+          // Rate limited: hold for the server's Retry-After and resend the
+          // same task rather than surfacing a per-file error.
+          patch(id, { progress: 0 });
+          void sleep(retryDelayMs(xhr.getResponseHeader("retry-after")))
+            .then(() => uploadViaApiTask(id, file, parentEntryId, attempt + 1))
+            .then(resolve);
         }
         else {
           patch(id, { status: "error", error: `HTTP ${xhr.status}` });
@@ -209,14 +235,20 @@ type PresignResponse
 
 /** Same-origin JSON POST to the drive API with cookie + CSRF header. */
 async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; body: unknown }> {
-  const res = await fetch(`${BASE_PATH}${path}`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
-    body: JSON.stringify(body),
-  });
-  const parsed = await res.json().catch(() => null);
-  return { ok: res.ok, status: res.status, body: parsed };
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${BASE_PATH}${path}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 429 && attempt < RATE_LIMIT_RETRIES) {
+      await sleep(retryDelayMs(res.headers.get("retry-after")));
+      continue;
+    }
+    const parsed = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, body: parsed };
+  }
 }
 
 /** PUT the file's bytes directly to the presigned (cross-origin) storage URL. */
@@ -292,22 +324,14 @@ async function findFolder(owner: UploadOwner, parentEntryId: string | null, name
 }
 
 async function createFolder(owner: UploadOwner, parentEntryId: string | null, name: string): Promise<DriveEntry> {
-  const res = await fetch(`${BASE_PATH}/api/drive/folders`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Requested-With": "XMLHttpRequest",
-    },
-    body: JSON.stringify({
-      name,
-      parentEntryId,
-      ownerType: owner.ownerType,
-      ownerId: owner.ownerId,
-    }),
+  const res = await postJson("/api/drive/folders", {
+    name,
+    parentEntryId,
+    ownerType: owner.ownerType,
+    ownerId: owner.ownerId,
   });
-  const body = await res.json() as { readonly data?: DriveEntry };
-  if (!res.ok || !body.data)
+  const entry = (res.body as { readonly data?: DriveEntry } | null)?.data;
+  if (!res.ok || !entry)
     throw new Error(`Could not create folder ${name}`);
-  return body.data;
+  return entry;
 }

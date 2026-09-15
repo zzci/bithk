@@ -153,6 +153,13 @@ function spawnApi(dataDir: string): Subprocess {
       // The webhook e2e spec posts to a receiver on loopback; the default SSRF
       // gate would refuse it (FEAT-060).
       HTTP_ACTION_ALLOW_PRIVATE: "true",
+      // Write rate limits off (FEAT-064): the suite drives one admin actor far
+      // past any human pace, so leaving them on would make the orchestrator a
+      // flake generator. The limiter itself is covered by unit tests.
+      CREATE_RATE_LIMIT_PER_MINUTE: "0",
+      CREATE_RATE_LIMIT_PER_HOUR: "0",
+      WRITE_RATE_LIMIT_PER_MINUTE: "0",
+      BULK_WRITE_RATE_LIMIT_PER_MINUTE: "0",
     },
     stdout: debug ? "inherit" : "pipe",
     stderr: debug ? "inherit" : "pipe",

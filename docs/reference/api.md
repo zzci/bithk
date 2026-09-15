@@ -56,6 +56,30 @@ additionally pass the global-role module visibility gate: a non-admin user
 whose role does not grant the module receives 404 (PLAN-076; see the
 [architecture doc](../architecture.md#authorization-model)).
 
+## Write rate limits
+
+Every mutating request (`POST` / `PUT` / `PATCH` / `DELETE`) under
+`protectedRoutes` is counted against a per-actor budget (FEAT-064), keyed by
+user id — client IP when no session resolves. Reads are never counted. Over
+budget the API answers `429` with `Retry-After` (seconds) and:
+
+```json
+{
+  "success": false,
+  "error": { "code": "RATE_LIMITED", "message": "Too many requests. Try again later." }
+}
+```
+
+| Bucket | Applies to | Default | Env |
+| --- | --- | --- | --- |
+| `create` | `POST` creating a business record: issues, procurements, equipment, worklists, projects and sub-projects, documents, contacts, comments, HR colleagues / approvals / payroll | 30/min **and** 300/h | `CREATE_RATE_LIMIT_PER_MINUTE`, `CREATE_RATE_LIMIT_PER_HOUR` |
+| `write-bulk` | `/drive`, `/files`, `/backup`; any path containing `/attachments`; cover-image and avatar uploads | 600/min | `BULK_WRITE_RATE_LIMIT_PER_MINUTE` |
+| `write` | every other mutating route | 60/min | `WRITE_RATE_LIMIT_PER_MINUTE` |
+
+Any knob set to `0` disables that bucket. Counters are in-memory, so each
+replica holds its own budget and a restart clears them. The unauthenticated
+limiters (login, TOTP step-up, public shares) are separate and keyed by IP.
+
 ## System
 
 | Method | Path                                       | Access        | Description                                                                                                                            |

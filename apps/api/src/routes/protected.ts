@@ -33,6 +33,7 @@ import { worklistRoutes } from "@/modules/ship/ship.worklist.service";
 // is wired into the tag registry here so the module never imports a domain schema.
 import { registerTagSource, tagRoutes } from "@/modules/tag";
 import { apiTokenScopeGuard } from "@/shared/middleware/api-token-scope";
+import { writeRateLimit } from "@/shared/middleware/write-rate-limit";
 
 // Register each domain's tag binding as a load-time side effect, so
 // the shared `/tags` routes know which types exist at boot.
@@ -53,6 +54,10 @@ export function protectedRoutes() {
   // nav-module concealment (404) wins over scope rejection (403); a no-op for
   // cookie / anonymous requests.
   app.use("*", apiTokenScopeGuard());
+  // Per-actor write frequency cap (FEAT-064): after the module gate so a hidden
+  // module still 404s rather than leaking a 429, and after the scope guard so a
+  // token writing outside its scope is rejected on its own terms.
+  app.use("*", writeRateLimit());
 
   app.route("/", accountRoutes());
   app.route("/", tagRoutes());

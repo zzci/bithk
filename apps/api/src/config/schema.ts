@@ -127,6 +127,29 @@ export const configSchema = z.object({
   // runs an hourly sweep that drops events older than this many days.
   AUDIT_RETENTION_DAYS: z.coerce.number().int().nonnegative().default(0),
 
+  // ─── Write rate limits (FEAT-064) ────────────────────────────────────
+  // Per-actor frequency caps on mutating protected routes, keyed by user id
+  // (client IP when no session resolves). Reads are never counted. Any knob at
+  // 0 disables its bucket. State is in-memory, so each replica carries its own
+  // budget and a restart clears the counters.
+  //
+  // Business-record creation (issues, procurements, equipment, worklists,
+  // projects, documents, contacts, comments, HR records). 30/min is one new
+  // record every two seconds — an order of magnitude faster than filling a
+  // create dialog — and the hourly ceiling bounds the total a runaway client
+  // can mint even while staying under the per-minute budget.
+  CREATE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().nonnegative().default(30),
+  CREATE_RATE_LIMIT_PER_HOUR: z.coerce.number().int().nonnegative().default(300),
+  // Everything else that mutates: PATCH/PUT/DELETE and action POSTs. Has to
+  // clear routine editing — the issue panel patches one field per request, so
+  // triaging a handful of work orders is dozens of writes a minute.
+  WRITE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().nonnegative().default(60),
+  // Upload / bulk surfaces (/drive, /files, /backup, attachments, covers),
+  // where one human gesture legitimately issues many requests. Frequency is the
+  // secondary defence here; MAX_UPLOAD_BYTES and UPLOADS_TOTAL_BYTES are the
+  // primary one.
+  BULK_WRITE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().nonnegative().default(600),
+
   // Attachment limits — apply to every upload-capable module (documents,
   // issues, …). Single source so per-file caps stay consistent. Expressed in
   // MB for ease of editing; `loadConfig` derives the byte value

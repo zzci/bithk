@@ -13,6 +13,18 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Per-actor frequency caps on every mutating API route (FEAT-064). Record
+  creation — work orders, procurements, equipment, worklists, projects,
+  documents, contacts, comments, HR records — is held to 30 per minute and 300
+  per hour per user; other edits to 60 per minute; upload and bulk surfaces
+  (drive, files, backup, attachments, cover images) to 600 per minute, where a
+  single gesture legitimately issues many requests. Over budget the API answers
+  `429 RATE_LIMITED` with `Retry-After`, and a bulk drive upload waits that out
+  instead of failing the file. Budgets are keyed by user, not by IP, so a shared
+  office egress is not a shared allowance. Tune with
+  `CREATE_RATE_LIMIT_PER_MINUTE`, `CREATE_RATE_LIMIT_PER_HOUR`,
+  `WRITE_RATE_LIMIT_PER_MINUTE` and `BULK_WRITE_RATE_LIMIT_PER_MINUTE`; any of
+  them set to `0` disables that bucket.
 - The drive preview dialog steps through the folder it was opened from
   (FEAT-063): previous / next buttons with a `current / total` counter, plus
   `ArrowLeft` / `ArrowRight`. The sequence covers previewable files only

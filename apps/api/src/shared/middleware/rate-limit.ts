@@ -1,3 +1,4 @@
+import type { Context } from "hono";
 import type { AppEnv } from "@/shared/lib/types";
 import { createMiddleware } from "hono/factory";
 import { getClientIp } from "@/shared/lib/client-ip";
@@ -14,6 +15,17 @@ export interface RateLimitOptions {
   readonly max: number;
   /** Logical bucket id; share between routes that should drain the same budget. */
   readonly bucket: string;
+}
+
+export interface RateLimitHit {
+  /** Logical bucket id; share between routes that should drain the same budget. */
+  readonly bucket: string;
+  /** What the budget is counted against — an IP, an actor id, … */
+  readonly key: string;
+  /** Window length in milliseconds. */
+  readonly windowMs: number;
+  /** Max hits per key per window. */
+  readonly max: number;
 }
 
 /**
@@ -85,7 +97,8 @@ function ensureGcTimer(windowMs: number): void {
  * Per-IP rate limiter. Uses the resolved client IP (peer IP by default, or
  * sanitised proxy headers when `config.TRUST_PROXY` is true); unresolved
  * peers share a single `anon` bucket to prevent header churn from evading
- * the gate.
+ * the gate. Bucket by something else — an actor, say — with
+ * `consumeRateLimit` directly.
  *
  * Pruning is performed by a single background `setInterval` (one timer total,
  * `unref()`'d, period bounded by the smallest configured window) instead of
@@ -93,33 +106,49 @@ function ensureGcTimer(windowMs: number): void {
  */
 export function rateLimit(opts: RateLimitOptions) {
   const { windowMs, max, bucket } = opts;
-  const map = getBucketMap(bucket);
   ensureGcTimer(windowMs);
 
   return createMiddleware<AppEnv>(async (c, next) => {
-    const ip = getClientIp(c, c.var.config) ?? "anon";
-    const now = Date.now();
-    const entry = map.get(ip);
-
-    if (entry && now < entry.resetAt) {
-      if (entry.count >= max) {
-        const retryAfter = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
-        c.header("Retry-After", String(retryAfter));
-        return c.json(
-          { success: false, error: { code: "RATE_LIMITED", message: "Too many requests. Try again later." } },
-          429,
-        );
-      }
-      entry.count++;
-    }
-    else {
-      if (map.size >= MAX_ENTRIES_PER_BUCKET)
-        evictOldest(map);
-      map.set(ip, { count: 1, resetAt: now + windowMs });
-    }
-
+    const key = getClientIp(c, c.var.config) ?? "anon";
+    const retryAfter = consumeRateLimit({ bucket, key, windowMs, max });
+    if (retryAfter > 0)
+      return rateLimited(c, retryAfter);
     return next();
   });
+}
+
+/**
+ * Count one hit against `bucket` for `key`. Returns 0 when the hit is allowed,
+ * otherwise the seconds remaining until the window resets — so a caller that
+ * needs several budgets (the write limiter charges a per-minute and a per-hour
+ * bucket) can check them itself instead of nesting middleware.
+ */
+export function consumeRateLimit({ bucket, key, windowMs, max }: RateLimitHit): number {
+  const map = getBucketMap(bucket);
+  ensureGcTimer(windowMs);
+  const now = Date.now();
+  const entry = map.get(key);
+
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= max)
+      return Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+    entry.count++;
+    return 0;
+  }
+
+  if (map.size >= MAX_ENTRIES_PER_BUCKET)
+    evictOldest(map);
+  map.set(key, { count: 1, resetAt: now + windowMs });
+  return 0;
+}
+
+/** The shared 429 envelope: `Retry-After` plus the `RATE_LIMITED` error code. */
+export function rateLimited(c: Context<AppEnv>, retryAfterSeconds: number): Response {
+  c.header("Retry-After", String(retryAfterSeconds));
+  return c.json(
+    { success: false, error: { code: "RATE_LIMITED", message: "Too many requests. Try again later." } },
+    429,
+  );
 }
 
 /**

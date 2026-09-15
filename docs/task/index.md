@@ -1,5 +1,6 @@
 # Tasks
 
+- [x] [**FEAT-064 Per-actor write rate limit on mutating API routes**](FEAT-064.md) `P1`
 - [x] [**FEAT-063 Step through previewable files from inside the preview dialog**](FEAT-063.md) `P3`
 - [x] [**FEAT-062 Convert a stored workbook into a spreadsheet from the server**](FEAT-062.md) `P2`
 - [x] [**FEAT-061 Import Excel workbooks as editable spreadsheets while keeping the original file**](FEAT-061.md) `P2`

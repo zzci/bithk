@@ -71,6 +71,10 @@ function baseConfig(): Config {
     OAUTH_PKCE: true,
     SESSION_MAX_AGE: 86400,
     AUDIT_RETENTION_DAYS: 0,
+    CREATE_RATE_LIMIT_PER_MINUTE: 30,
+    CREATE_RATE_LIMIT_PER_HOUR: 300,
+    WRITE_RATE_LIMIT_PER_MINUTE: 60,
+    BULK_WRITE_RATE_LIMIT_PER_MINUTE: 600,
     MAX_UPLOAD_BYTES: 10 * 1024 * 1024,
     MAX_ATTACHMENTS_PER_RESOURCE: 20,
     UPLOADS_TOTAL_BYTES: 0,
@@ -576,6 +580,29 @@ describe("contact routes", () => {
     expect(res.status).toBe(200);
     expect(((await res.json()) as { data: unknown[] }).data).toEqual([]);
   });
+
+  test("record creation is capped by the protected router's write rate limit", async () => {
+    // Proves the FEAT-064 limiter is actually mounted on the real protected
+    // router, not just correct in isolation. A tiny budget keeps it to three
+    // requests; `x-uid` is unique to this test so no other case shares the
+    // process-global bucket.
+    const group = await createGroup(db, { name: "Rate limited", modules: ["contacts"] });
+    const app = buildProtectedApp({ CREATE_RATE_LIMIT_PER_MINUTE: 2 });
+    const user = await seedUser("rate-limited-user");
+    await addGroupMember(db, group.id, user);
+
+    const create = (name: string) => createContact(app, user, { name });
+
+    expect((await create("One")).status).toBe(201);
+    expect((await create("Two")).status).toBe(201);
+    const limited = await create("Three");
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("Retry-After")).not.toBeNull();
+    expect(((await limited.json()) as { error: { code: string } }).error.code).toBe("RATE_LIMITED");
+
+    // Reads are untouched by the limiter.
+    expect((await app.request("/contacts", { headers: { "x-uid": user } })).status).toBe(200);
+  });
 });
 
 function buildContactApp(): Hono<AppEnv> {
@@ -586,19 +613,19 @@ function buildContactApp(): Hono<AppEnv> {
   return app;
 }
 
-function buildProtectedApp(): Hono<AppEnv> {
-  const app = buildBaseApp();
+function buildProtectedApp(configOverrides: Partial<Config> = {}): Hono<AppEnv> {
+  const app = buildBaseApp(configOverrides);
   app.use("*", policyMiddleware({ basePath: "" }));
   app.route("/", protectedRoutes());
   app.onError(errorHandler);
   return app;
 }
 
-function buildBaseApp(): Hono<AppEnv> {
+function buildBaseApp(configOverrides: Partial<Config> = {}): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use("*", async (c, next) => {
     c.set("db", db);
-    c.set("config", baseConfig());
+    c.set("config", { ...baseConfig(), ...configOverrides });
     c.set("logger", stubLogger);
     c.set("requestId", "test");
     const uid = c.req.header("x-uid");
