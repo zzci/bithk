@@ -11,6 +11,10 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+_Nothing yet._
+
+## v0.5.0 — 2026-09-15
+
 ### Added
 
 - Per-actor frequency caps on every mutating API route (FEAT-064). Record
